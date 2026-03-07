@@ -40,6 +40,8 @@ FEEDS = [
     {"name": "DOE Nuclear Energy",       "url": "https://www.energy.gov/ne/rss.xml"},
     {"name": "ANS Nuclear Newswire",     "url": "https://www.ans.org/news/feed/"},
     {"name": "Nuclear Engineering Intl", "url": "https://www.neimagazine.com/rss"},
+    {"name": "Nucnet",                   "url": "https://www.nucnet.org/news/rss"},
+    {"name": "Power Magazine Nuclear",   "url": "https://www.powermag.com/category/nuclear/feed/"},
 ]
 
 # Keywords that flag an article as a potential deal/milestone
@@ -50,9 +52,10 @@ SIGNAL_KEYWORDS = [
     "smr", "advanced reactor", "microreactor", "natrium", "xe-100", "bwrx",
     "aurora", "evinci", "kairos", "nuscale", "last energy", "terrapower",
     "x-energy", "ge hitachi", "oklo", "westinghouse", "newcleo", "radiant",
-    "dow", "microsoft", "google", "amazon", "data center",
+    "dow", "microsoft", "google", "amazon", "meta", "data center",
     "haleu", "doe", "ardp", "nrc", "license application",
-    "power purchase", "ppa", "offtake",
+    "power purchase", "ppa", "offtake", "reactor order", "reactor sale",
+    "letter of intent", "loi", "feasibility", "site selection",
 ]
 
 # Google Sheets tab names
@@ -117,13 +120,18 @@ def ensure_sheets(spreadsheet):
     """Create Deals and Seen tabs if they don't exist; add headers to Deals."""
     sheet_names = [ws.title for ws in spreadsheet.worksheets()]
     
-    # Deals sheet
     if SHEET_DEALS not in sheet_names:
         ws = spreadsheet.add_worksheet(title=SHEET_DEALS, rows=1000, cols=20)
         ws.append_row(DEAL_COLUMNS, value_input_option="RAW")
         print(f"  Created sheet: {SHEET_DEALS}")
+    else:
+        # Ensure headers exist (first row)
+        ws = spreadsheet.worksheet(SHEET_DEALS)
+        first_row = ws.row_values(1)
+        if not first_row or first_row[0] != "id":
+            ws.insert_row(DEAL_COLUMNS, 1, value_input_option="RAW")
+            print(f"  Re-added headers to {SHEET_DEALS}")
     
-    # Seen hashes sheet (single column)
     if SHEET_SEEN not in sheet_names:
         ws = spreadsheet.add_worksheet(title=SHEET_SEEN, rows=5000, cols=2)
         ws.append_row(["hash", "title"], value_input_option="RAW")
@@ -131,15 +139,12 @@ def ensure_sheets(spreadsheet):
 
 
 def load_seen_hashes(spreadsheet) -> set:
-    """Load all previously seen article hashes from the Seen sheet."""
     ws = spreadsheet.worksheet(SHEET_SEEN)
     records = ws.get_all_values()
-    # Skip header row; first column is hash
     return {row[0] for row in records[1:] if row}
 
 
-def save_seen_hashes(spreadsheet, new_entries: list[tuple]):
-    """Append new (hash, title) rows to the Seen sheet."""
+def save_seen_hashes(spreadsheet, new_entries: list):
     if not new_entries:
         return
     ws = spreadsheet.worksheet(SHEET_SEEN)
@@ -147,15 +152,13 @@ def save_seen_hashes(spreadsheet, new_entries: list[tuple]):
         ws.append_row(list(entry), value_input_option="RAW")
 
 
-def load_existing_deals(spreadsheet) -> list[dict]:
-    """Load existing deals to get current max ID."""
+def load_existing_deals(spreadsheet) -> list:
     ws = spreadsheet.worksheet(SHEET_DEALS)
     records = ws.get_all_records()
     return records
 
 
-def append_deals(spreadsheet, deals: list[dict]):
-    """Append new deal rows to the Deals sheet."""
+def append_deals(spreadsheet, deals: list):
     ws = spreadsheet.worksheet(SHEET_DEALS)
     for deal in deals:
         row = [str(deal.get(col, "")) for col in DEAL_COLUMNS]
@@ -175,9 +178,8 @@ def is_relevant(title: str, summary: str) -> bool:
 
 
 def fetch_article_text(url: str) -> str:
-    """Grab cleaned article body text."""
     try:
-        resp = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+        resp = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
         soup = BeautifulSoup(resp.text, "html.parser")
         for tag in soup(["nav", "footer", "script", "style", "aside", "header"]):
             tag.decompose()
@@ -189,13 +191,17 @@ def fetch_article_text(url: str) -> str:
     return ""
 
 
-def scrape_feeds() -> list[dict]:
+def scrape_feeds() -> list:
     candidates = []
+    feed_results = []
+    
     for feed_cfg in FEEDS:
-        print(f"  Fetching: {feed_cfg['name']} ...")
+        print(f"  Fetching: {feed_cfg['name']} ...", end=" ")
         try:
             feed = feedparser.parse(feed_cfg["url"])
-            for entry in feed.entries[:25]:
+            n_entries = len(feed.entries)
+            n_matched = 0
+            for entry in feed.entries[:30]:
                 title   = getattr(entry, "title", "")
                 link    = getattr(entry, "link", "")
                 summary = BeautifulSoup(
@@ -204,6 +210,7 @@ def scrape_feeds() -> list[dict]:
                 pub     = getattr(entry, "published", "")
                 
                 if is_relevant(title, summary):
+                    n_matched += 1
                     candidates.append({
                         "title":   title,
                         "link":    link,
@@ -211,16 +218,19 @@ def scrape_feeds() -> list[dict]:
                         "pub":     pub,
                         "feed":    feed_cfg["name"],
                     })
+            feed_results.append(f"{n_entries} entries, {n_matched} matched")
+            print(f"{n_entries} entries, {n_matched} matched")
         except Exception as e:
-            print(f"    ⚠ Feed error ({feed_cfg['name']}): {e}")
+            print(f"ERROR: {e}")
+            feed_results.append(f"ERROR: {e}")
     
-    print(f"  {len(candidates)} relevant candidates found across all feeds")
+    print(f"\n  TOTAL: {len(candidates)} candidate articles across all feeds")
     return candidates
 
 
 # ── CLAUDE EXTRACTION ──────────────────────────────────────────────────────────
 
-def extract_deal(client: anthropic.Anthropic, article: dict) -> dict | None:
+def extract_deal(client: anthropic.Anthropic, article: dict):
     body = fetch_article_text(article["link"])
     
     user_msg = f"""Title: {article['title']}
@@ -231,16 +241,77 @@ Body: {body[:2000] if body else 'Not available'}
 """
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=700,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_msg}],
         )
         raw = response.content[0].text.strip().replace("```json", "").replace("```", "").strip()
+        print(f"    Claude raw: {raw[:120]}")
         return json.loads(raw)
     except Exception as e:
         print(f"    ⚠ Claude error: {e}")
         return None
+
+
+# ── SEED DATA (loaded once if sheet is empty) ──────────────────────────────────
+
+SEED_DEALS = [
+    {
+        "id": 1, "date": "2024-10-15", "company": "TerraPower",
+        "reactor": "Natrium", "project": "Kemmerer Plant",
+        "location": "Kemmerer, WY", "partners": "PacifiCorp, DOE",
+        "deal": "Construction permit application accepted by NRC",
+        "significance": "Deployment",
+        "source": "https://www.world-nuclear-news.org/Articles/TerraPower-submits-construction-permit-application",
+        "summary": "TerraPower submitted a construction permit application to the NRC for its Natrium reactor demonstration at the Kemmerer, Wyoming site, marking a key licensing milestone.",
+    },
+    {
+        "id": 2, "date": "2024-09-20", "company": "X-energy",
+        "reactor": "Xe-100", "project": "Dow Seadrift MOU",
+        "location": "Seadrift, TX", "partners": "Dow Chemical",
+        "deal": "MOU for industrial heat and power supply",
+        "significance": "Signaling",
+        "source": "https://x-energy.com/news/dow-x-energy-mou",
+        "summary": "X-energy and Dow signed an MOU to explore deploying Xe-100 reactors at Dow's Seadrift, TX facility for industrial process heat and electricity.",
+    },
+    {
+        "id": 3, "date": "2024-11-05", "company": "GE Hitachi",
+        "reactor": "BWRX-300", "project": "Ontario Power Generation",
+        "location": "Darlington, Ontario", "partners": "Ontario Power Generation, SNC-Lavalin",
+        "deal": "EPC contract signed for first BWRX-300",
+        "significance": "Market development",
+        "source": "https://www.world-nuclear-news.org/Articles/OPG-GEH-sign-contract-for-Darlington-SMR",
+        "summary": "Ontario Power Generation and GE Hitachi signed an engineering, procurement and construction contract for the first BWRX-300 SMR at Darlington, targeting 2028 operation.",
+    },
+    {
+        "id": 4, "date": "2024-08-12", "company": "Oklo",
+        "reactor": "Aurora", "project": "DoD Eielson AFB",
+        "location": "Eielson AFB, AK", "partners": "U.S. Department of Defense",
+        "deal": "Site license agreement with DoD for microreactor",
+        "significance": "Market development",
+        "source": "https://oklo.com/news/oklo-dod-eielson",
+        "summary": "Oklo signed a site license agreement with the U.S. Department of Defense to deploy an Aurora microreactor at Eielson Air Force Base, Alaska.",
+    },
+    {
+        "id": 5, "date": "2024-12-01", "company": "Westinghouse",
+        "reactor": "eVinci", "project": "Program-level",
+        "location": "United States", "partners": "DOE, NASA",
+        "deal": "eVinci microreactor awarded DOE demonstration funding",
+        "significance": "Market development",
+        "source": "https://www.westinghousenuclear.com/evinci-news",
+        "summary": "Westinghouse received DOE funding to advance the eVinci microreactor toward demonstration, with potential applications for remote sites and space power systems.",
+    },
+    {
+        "id": 6, "date": "2025-01-18", "company": "NuScale",
+        "reactor": "VOYGR", "project": "Program-level",
+        "location": "United States", "partners": "Standard Power",
+        "deal": "LOI for data center power supply with Standard Power",
+        "significance": "Signaling",
+        "source": "https://www.nuscalepower.com/news/standard-power-loi",
+        "summary": "NuScale signed a letter of intent with Standard Power to explore powering AI data centers with VOYGR SMRs, reflecting growing tech-sector interest in nuclear.",
+    },
+]
 
 
 # ── MAIN ───────────────────────────────────────────────────────────────────────
@@ -269,27 +340,42 @@ def run():
     
     print(f"  Loaded {len(seen_hashes)} seen hashes, {len(existing_deals)} existing deals\n")
 
+    # ── Seed if empty ──
+    if len(existing_deals) == 0:
+        print("  Sheet is empty — loading seed data...")
+        seed_rows = []
+        for deal in SEED_DEALS:
+            deal["scraped_at"] = now
+            seed_rows.append(deal)
+        append_deals(spreadsheet, seed_rows)
+        next_id = len(SEED_DEALS) + 1
+        print(f"  ✅ Seeded {len(SEED_DEALS)} baseline deals\n")
+        # Mark seed URLs as seen so they don't get re-extracted from feeds
+        seed_seen = [(hashlib.md5(f"{d['deal']}|{d['source']}".encode()).hexdigest(), d['deal'][:200]) for d in SEED_DEALS]
+        save_seen_hashes(spreadsheet, seed_seen)
+        seen_hashes = {h for h, _ in seed_seen}
+
     # ── Init Claude ──
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     # ── Scrape ──
+    print("Scanning RSS feeds...")
     candidates = scrape_feeds()
     print()
 
-    new_deals      = []
-    new_seen_rows  = []
+    new_deals     = []
+    new_seen_rows = []
 
     for article in candidates:
         h = entry_hash(article["title"], article["link"])
         
         if h in seen_hashes:
-            print(f"  ↩ Seen: {article['title'][:65]}")
+            print(f"  ↩ Seen: {article['title'][:70]}")
             continue
 
-        print(f"  ⟳ Extracting: {article['title'][:65]}")
+        print(f"  ⟳ Extracting: {article['title'][:70]}")
         result = extract_deal(client, article)
         
-        # Always mark as seen to avoid re-processing
         new_seen_rows.append((h, article["title"][:200]))
 
         if result is None:
@@ -302,7 +388,7 @@ def run():
 
         required = ["company", "reactor", "deal", "date", "significance", "source"]
         if not all(result.get(k) for k in required):
-            print(f"    ✗ Incomplete: {result}")
+            print(f"    ✗ Incomplete fields: {result}")
             continue
 
         result["id"]         = next_id
@@ -319,7 +405,7 @@ def run():
         append_deals(spreadsheet, new_deals)
         print(f"✅ Added {len(new_deals)} new deal(s) to Google Sheet")
     else:
-        print("— No new deals found today")
+        print("— No new deals found in today's feeds")
 
     if new_seen_rows:
         save_seen_hashes(spreadsheet, new_seen_rows)
