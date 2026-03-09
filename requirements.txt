@@ -1,4 +1,4 @@
-openai
+anthropic
 feedparser
 requests
 beautifulsoup4
