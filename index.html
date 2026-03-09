@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nuclear Deal Tracker â EFI Foundation</title>
+<title>Nuclear Deal Tracker Ã¢ÂÂ EFI Foundation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Source Sans 3', sans-serif; background: #f4f7fa; color: #1a2840; min-height: 100vh; }
 
-  /* ââ Nav ââ */
+  /* Ã¢ÂÂÃ¢ÂÂ Nav Ã¢ÂÂÃ¢ÂÂ */
   nav { background: #fff; border-bottom: 1px solid #dce8f0; padding: 0 48px; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 200; }
   .nav-logo { display: flex; align-items: center; gap: 10px; }
   .nav-icon { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg,#1a5fa8,#0a3060); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
@@ -18,7 +18,7 @@
   .nav-sub { font-size: 9px; letter-spacing: 0.1em; color: #8a9db5; text-transform: uppercase; }
   .nav-label { font-size: 12px; color: #8a9db5; letter-spacing: 0.04em; }
 
-  /* ââ Hero ââ */
+  /* Ã¢ÂÂÃ¢ÂÂ Hero Ã¢ÂÂÃ¢ÂÂ */
   .hero { background: linear-gradient(135deg,#05152e 0%,#0a2a5a 55%,#0d3878 100%); padding: 60px 48px 52px; position: relative; overflow: hidden; }
   .hero-watermark { position: absolute; right: -60px; top: -30px; font-family: 'Playfair Display', serif; font-size: 240px; font-weight: 800; color: rgba(255,255,255,0.025); line-height: 1; user-select: none; pointer-events: none; white-space: nowrap; }
   .hero-inner { max-width: 1280px; margin: 0 auto; }
@@ -30,17 +30,17 @@
   .stat-n { font-size: 22px; font-weight: 700; color: #fff; font-family: 'Playfair Display', serif; }
   .stat-l { font-size: 12px; color: #a8c4e0; }
 
-  /* ââ Content ââ */
+  /* Ã¢ÂÂÃ¢ÂÂ Content Ã¢ÂÂÃ¢ÂÂ */
   .content { max-width: 1280px; margin: 0 auto; padding: 40px 48px 80px; }
 
-  /* ââ Filters ââ */
+  /* Ã¢ÂÂÃ¢ÂÂ Filters Ã¢ÂÂÃ¢ÂÂ */
   .filters { background: #fff; border: 1px solid #dce8f0; border-radius: 4px; padding: 22px 28px; margin-bottom: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
   .filter-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: #6b7c93; font-weight: 700; margin-bottom: 14px; }
   .filter-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
   .sel-wrap label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: #6b7c93; font-weight: 700; margin-bottom: 4px; }
   .sel-wrap select { width: 100%; border: 1px solid #c8d8e8; border-radius: 6px; padding: 7px 28px 7px 10px; font-size: 13px; color: #1a2840; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 5 5-5' stroke='%236b7c93' stroke-width='1.5' fill='none'/%3E%3C/svg%3E") no-repeat right 10px center; appearance: none; outline: none; cursor: pointer; font-family: inherit; }
 
-  /* ââ Table ââ */
+  /* Ã¢ÂÂÃ¢ÂÂ Table Ã¢ÂÂÃ¢ÂÂ */
   .table-wrap { background: #fff; border: 1px solid #dce8f0; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
   .table-header { padding: 14px 28px; border-bottom: 2px solid #1a5fa8; display: flex; align-items: center; justify-content: space-between; }
   .table-count { font-size: 13px; color: #3a5268; font-weight: 600; }
@@ -58,7 +58,7 @@
   .lbtn:hover { color: #0f3d78; text-decoration-color: #0f3d78; }
   .empty { padding: 48px 28px; text-align: center; font-size: 14px; color: #8a9db5; }
 
-  /* ââ Badge ââ */
+  /* Ã¢ÂÂÃ¢ÂÂ Badge Ã¢ÂÂÃ¢ÂÂ */
   .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
   .badge-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
   .sig-deployment      { color: #1a6b3a; background: #e8f5ee; }
@@ -68,7 +68,7 @@
   .sig-signaling       { color: #1a3a5c; background: #e8f0f8; }
   .sig-signaling .badge-dot       { background: #4a7aaa; }
 
-  /* ââ Modal ââ */
+  /* Ã¢ÂÂÃ¢ÂÂ Modal Ã¢ÂÂÃ¢ÂÂ */
   .modal-overlay { position: fixed; inset: 0; background: rgba(5,15,35,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(3px); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
   .modal-overlay.open { opacity: 1; pointer-events: all; }
   .modal-box { background: #fff; border-radius: 4px; padding: 40px 44px; width: 100%; max-width: 560px; box-shadow: 0 24px 64px rgba(0,0,0,0.22); border: 1px solid #dce8f0; max-height: 88vh; overflow-y: auto; transform: translateY(16px); transition: transform 0.2s; }
@@ -84,14 +84,14 @@
   .modal-close { background: none; border: 1px solid #c8d8e8; border-radius: 99px; padding: 7px 20px; font-size: 13px; color: #3a5268; cursor: pointer; font-family: inherit; }
   .modal-close:hover { background: #f4f7fa; }
 
-  /* ââ Loading ââ */
+  /* Ã¢ÂÂÃ¢ÂÂ Loading Ã¢ÂÂÃ¢ÂÂ */
   .loading { padding: 80px 28px; text-align: center; }
   .loading-spinner { width: 36px; height: 36px; border: 3px solid #dce8f0; border-top-color: #1a5fa8; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-text { font-size: 14px; color: #8a9db5; }
   .error-msg { padding: 40px 28px; text-align: center; font-size: 14px; color: #c0392b; }
 
-  /* ââ Footer ââ */
+  /* Ã¢ÂÂÃ¢ÂÂ Footer Ã¢ÂÂÃ¢ÂÂ */
   .footer { margin-top: 32px; padding-top: 24px; border-top: 1px solid #dce8f0; display: flex; justify-content: space-between; align-items: center; }
   .footer-left { font-size: 12px; color: #8a9db5; }
   .footer-link { font-size: 12px; color: #1a5fa8; text-decoration: none; }
@@ -111,7 +111,7 @@
 <!-- Nav -->
 <nav>
   <div class="nav-logo">
-    <div class="nav-icon">â</div>
+    <div class="nav-icon">Ã¢ÂÂ</div>
     <div>
       <div class="nav-title">EFI Foundation</div>
       <div class="nav-sub">Nuclear Scaling Initiative</div>
@@ -128,10 +128,10 @@
     <h1>Nuclear Deal Tracker</h1>
     <p>Tracking commercialization milestones, partnerships, and deployment announcements across U.S. advanced nuclear reactor developers.</p>
     <div class="stats" id="stats">
-      <div class="stat-pill"><span class="stat-n" id="stat-deploy">â</span><span class="stat-l">Deployment</span></div>
-      <div class="stat-pill"><span class="stat-n" id="stat-market">â</span><span class="stat-l">Market development</span></div>
-      <div class="stat-pill"><span class="stat-n" id="stat-signal">â</span><span class="stat-l">Signaling</span></div>
-      <div class="stat-pill"><span class="stat-n" id="stat-total">â</span><span class="stat-l">Total entries</span></div>
+      <div class="stat-pill"><span class="stat-n" id="stat-deploy">Ã¢ÂÂ</span><span class="stat-l">Deployment</span></div>
+      <div class="stat-pill"><span class="stat-n" id="stat-market">Ã¢ÂÂ</span><span class="stat-l">Market development</span></div>
+      <div class="stat-pill"><span class="stat-n" id="stat-signal">Ã¢ÂÂ</span><span class="stat-l">Signaling</span></div>
+      <div class="stat-pill"><span class="stat-n" id="stat-total">Ã¢ÂÂ</span><span class="stat-l">Total entries</span></div>
     </div>
   </div>
 </div>
@@ -153,7 +153,7 @@
   <!-- Table -->
   <div class="table-wrap">
     <div class="table-header">
-      <span class="table-count" id="table-count">Loadingâ¦</span>
+      <span class="table-count" id="table-count">LoadingÃ¢ÂÂ¦</span>
       <div class="legend">
         <div class="legend-item"><span class="legend-dot" style="background:#2e9e57"></span>Deployment</div>
         <div class="legend-item"><span class="legend-dot" style="background:#d4820a"></span>Market development</div>
@@ -172,15 +172,15 @@
     <div id="table-body">
       <div class="loading">
         <div class="loading-spinner"></div>
-        <div class="loading-text">Loading data from Google Sheetsâ¦</div>
+        <div class="loading-text">Loading data from Google SheetsÃ¢ÂÂ¦</div>
       </div>
     </div>
   </div>
 
   <!-- Footer -->
   <div class="footer">
-    <span class="footer-left">EFI Foundation Â· Nuclear Scaling Initiative Â· Updated daily</span>
-    <a href="https://efifoundation.org" target="_blank" rel="noreferrer" class="footer-link">efifoundation.org â</a>
+    <span class="footer-left">EFI Foundation ÃÂ· Nuclear Scaling Initiative ÃÂ· Updated daily</span>
+    <a href="https://efifoundation.org" target="_blank" rel="noreferrer" class="footer-link">efifoundation.org Ã¢ÂÂ</a>
   </div>
 </div>
 
@@ -197,15 +197,15 @@
 </div>
 
 <script>
-// ââ CONFIG â paste your published CSV URL here âââââââââââââââââââââââââââââ
-// File â Share â Publish to web â Announcements tab â CSV â copy URL
+// Ã¢ÂÂÃ¢ÂÂ CONFIG Ã¢ÂÂ paste your published CSV URL here Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// File Ã¢ÂÂ Share Ã¢ÂÂ Publish to web Ã¢ÂÂ Announcements tab Ã¢ÂÂ CSV Ã¢ÂÂ copy URL
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1192838156&single=true&output=csv";
-// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 let allDeals = [];
 let filtered = [];
 
-// ââ CSV parser ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ CSV parser Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 function parseCSV(text) {
   const lines = text.trim().split("\n");
   const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
@@ -226,14 +226,14 @@ function parseCSV(text) {
   }).filter(r => r["ann_id"] && r["ann_id"] !== "ann_id");
 }
 
-// ââ Date formatter ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Date formatter Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 function fmtDate(d) {
-  if (!d || d === "baseline") return "â";
+  if (!d || d === "baseline") return "Ã¢ÂÂ";
   try { return new Date(d + "T00:00:00").toLocaleDateString("en-US", { year:"numeric", month:"short", day:"numeric" }); }
   catch { return d; }
 }
 
-// ââ Badge âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Badge Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 function badge(sig) {
   const map = {
     "Deployment":         "sig-deployment",
@@ -241,10 +241,10 @@ function badge(sig) {
     "Signaling":          "sig-signaling",
   };
   const cls = map[sig] || "sig-signaling";
-  return `<span class="badge ${cls}"><span class="badge-dot"></span>${sig || "â"}</span>`;
+  return `<span class="badge ${cls}"><span class="badge-dot"></span>${sig || "Ã¢ÂÂ"}</span>`;
 }
 
-// ââ Populate filters ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Populate filters Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 function populate(id, key) {
   const sel = document.getElementById(id);
   const vals = ["All", ...new Set(allDeals.map(d => d[key]).filter(Boolean).sort())];
@@ -262,7 +262,7 @@ function buildFilters() {
   });
 }
 
-// ââ Stats âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Stats Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 function updateStats() {
   document.getElementById("stat-deploy").textContent = allDeals.filter(d => d.Significance === "Deployment").length;
   document.getElementById("stat-market").textContent = allDeals.filter(d => d.Significance === "Market development").length;
@@ -270,7 +270,7 @@ function updateStats() {
   document.getElementById("stat-total").textContent  = allDeals.length;
 }
 
-// ââ Render table ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Render table Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 function render() {
   const fc = document.getElementById("f-company").value;
   const fr = document.getElementById("f-reactor").value;
@@ -300,18 +300,18 @@ function render() {
   const grid = "1fr 0.85fr 1.2fr 1.5fr 0.75fr 0.9fr 1.1fr";
   body.innerHTML = filtered.map((d, i) => `
     <div class="row" style="--grid:${grid}" data-idx="${i}">
-      <button class="lbtn" onclick="openModal('company', ${i})">${d.Company || "â"}</button>
-      <button class="lbtn" onclick="openModal('reactor', ${i})">${d.Reactor || "â"}</button>
-      <button class="lbtn" onclick="openModal('project', ${i})">${d.Project || "â"}</button>
-      <button class="lbtn" onclick="openModal('deal', ${i})">${d["Deal / Announcement"] || "â"}</button>
-      <span class="cell">${d.Partners || "â"}</span>
+      <button class="lbtn" onclick="openModal('company', ${i})">${d.Company || "Ã¢ÂÂ"}</button>
+      <button class="lbtn" onclick="openModal('reactor', ${i})">${d.Reactor || "Ã¢ÂÂ"}</button>
+      <button class="lbtn" onclick="openModal('project', ${i})">${d.Project || "Ã¢ÂÂ"}</button>
+      <button class="lbtn" onclick="openModal('deal', ${i})">${d["Deal / Announcement"] || "Ã¢ÂÂ"}</button>
+      <span class="cell">${d.Partners || "Ã¢ÂÂ"}</span>
       <span class="cell-date">${fmtDate(d.Date)}</span>
       ${badge(d.Significance)}
     </div>
   `).join("");
 }
 
-// ââ Modal âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Modal Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 function drow(label, val) {
   if (!val) return "";
   return `<div class="drow"><span class="drow-label">${label}</span><span class="drow-val">${val}</span></div>`;
@@ -348,7 +348,7 @@ function openModal(type, idx) {
            drow("Timeline", d.Timeline);
     if (d.Summary) body += `<p class="modal-desc">${d.Summary}</p>`;
     if (d.Source && d.Source.startsWith("http")) {
-      body += `<a href="${d.Source}" target="_blank" rel="noreferrer" class="modal-link">View source â</a>`;
+      body += `<a href="${d.Source}" target="_blank" rel="noreferrer" class="modal-link">View source Ã¢ÂÂ</a>`;
     }
   }
 
@@ -369,15 +369,15 @@ document.getElementById("modal-overlay").addEventListener("click", function(e) {
 document.getElementById("modal-close-btn").addEventListener("click", closeModal);
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
-// ââ Load data âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Load data Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 async function loadData() {
   const body = document.getElementById("table-body");
 
-  if (SHEET_CSV_URL === "PASTE_YOUR_CSV_URL_HERE") {
+  if (SHEET_CSV_URL === "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1192838156&single=true&output=csv") {
     body.innerHTML = `<div class="error-msg">
-      â ï¸ Open this file in a text editor and replace <strong>PASTE_YOUR_CSV_URL_HERE</strong>
+      Ã¢ÂÂ Ã¯Â¸Â Open this file in a text editor and replace <strong>PASTE_YOUR_CSV_URL_HERE</strong>
       with your Google Sheet published CSV URL.<br><br>
-      File â Share â Publish to web â Announcements tab â CSV format â Publish â copy URL
+      File Ã¢ÂÂ Share Ã¢ÂÂ Publish to web Ã¢ÂÂ Announcements tab Ã¢ÂÂ CSV format Ã¢ÂÂ Publish Ã¢ÂÂ copy URL
     </div>`;
     document.getElementById("table-count").textContent = "No data source configured";
     return;
@@ -393,7 +393,7 @@ async function loadData() {
     render();
   } catch (err) {
     body.innerHTML = `<div class="error-msg">
-      â Could not load data: ${err.message}<br><br>
+      Ã¢ÂÂ Could not load data: ${err.message}<br><br>
       Make sure your Google Sheet is published to web as CSV and the URL is correct.
     </div>`;
     document.getElementById("table-count").textContent = "Error loading data";
