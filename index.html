@@ -256,10 +256,19 @@ function populate(id, key) {
   sel.innerHTML = vals.map(v => `<option>${v}</option>`).join("");
 }
 
+function populateFromMap(id, map) {
+  const sel = document.getElementById(id);
+  const vals = ["All", ...Object.keys(map).filter(Boolean).sort()];
+  sel.innerHTML = vals.map(v => `<option>${v}</option>`).join("");
+}
+
 function buildFilters() {
-  populate("f-company", "Company");
-  populate("f-reactor", "Reactor");
-  populate("f-project", "Project");
+  // Company filter: only nuclear developers from the Companies tab
+  populateFromMap("f-company", companiesMap);
+  // Reactor & Project: from their respective tabs
+  populateFromMap("f-reactor", reactorsMap);
+  populateFromMap("f-project", projectsMap);
+  // Partners: all unique values from Announcements (tech cos, utilities, DOE, etc.)
   populate("f-partner", "Partners");
   populate("f-sig",     "Significance");
   ["f-company","f-reactor","f-project","f-partner","f-sig"].forEach(id => {
