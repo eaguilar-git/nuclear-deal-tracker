@@ -180,22 +180,23 @@
   </div>
 </div>
 <script>
-// ── CONFIG ─────────────────────────────────────────────────────────────────
-const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1192838156&single=true&output=csv";
-const COMPANIES_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=0&single=true&output=csv";
-const REACTORS_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1429460762&single=true&output=csv";
-const PROJECTS_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1132713683&single=true&output=csv";
+// ── CONFIG ────────────────────────────────────────────────────────────────
+const SHEET_CSV_URL   = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1192838156&single=true&output=csv";
+const COMPANIES_URL   = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=0&single=true&output=csv";
+const REACTORS_URL    = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1429460762&single=true&output=csv";
+const PROJECTS_URL    = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1132713683&single=true&output=csv";
 // ──────────────────────────────────────────────────────────────────────────
 let allDeals = [];
 let filtered = [];
-let companiesMap = {};
-let reactorsMap  = {};
-let projectsMap  = {};
-// ── CSV parser ─────────────────────────────────────────────────────────────
+let companiesMap = {};   // keyed by "Company Name"
+let reactorsMap  = {};   // keyed by "Reactor Name"
+let projectsMap  = {};   // keyed by "Project Name"
+// ── CSV parser ──────────────────────────────────────────────────────────────
 function parseCSV(text) {
   const lines = text.trim().split("\n");
   const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
   return lines.slice(1).map(line => {
+    // Handle quoted fields with commas inside
     const fields = [];
     let cur = "", inQ = false;
     for (let i = 0; i < line.length; i++) {
@@ -210,7 +211,7 @@ function parseCSV(text) {
     return obj;
   }).filter(r => r["ann_id"] && r["ann_id"] !== "ann_id");
 }
-// ── CHANGED: Date helpers — handles M/D/YYYY from Google Sheets ────────────
+// ── Date helpers — handles M/D/YYYY from Google Sheets ────────────────────
 function parseDate(d) {
   if (!d) return 0;
   const mdy = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -225,7 +226,7 @@ function fmtDate(d) {
     return new Date(ts).toLocaleDateString("en-US", { year:"numeric", month:"short", day:"numeric" });
   } catch(e) { return d; }
 }
-// ── Badge ──────────────────────────────────────────────────────────────────
+// ── Badge ───────────────────────────────────────────────────────────────────
 function badge(sig) {
   const map = {
     "Deployment":         "sig-deployment",
@@ -235,49 +236,44 @@ function badge(sig) {
   const cls = map[sig] || "sig-signaling";
   return `<span class="badge ${cls}"><span class="badge-dot"></span>${sig || "—"}</span>`;
 }
-// ── Build filters ──────────────────────────────────────────────────────────
-function populateSel(id, vals) {
+// ── Populate filters ────────────────────────────────────────────────────────
+function populate(id, key) {
   const sel = document.getElementById(id);
-  sel.innerHTML = ["All", ...vals].map(v => `<option>${v}</option>`).join("");
-  sel.addEventListener("change", render);
+  const vals = ["All", ...new Set(allDeals.map(d => d[key]).filter(Boolean).sort())];
+  sel.innerHTML = vals.map(v => `<option>${v}</option>`).join("");
 }
 function buildFilters() {
-  populateSel("f-company", Object.keys(companiesMap).filter(Boolean).sort());
-  populateSel("f-reactor", Object.keys(reactorsMap).filter(Boolean).sort());
-  populateSel("f-project", Object.keys(projectsMap).filter(Boolean).sort());
-  const partnerSet = new Set();
-  allDeals.forEach(d => {
-    if (d.Partners) d.Partners.split(";").forEach(p => {
-      const t = p.trim();
-      if (t && t !== "N/A" && t !== "TBD") partnerSet.add(t);
-    });
+  populate("f-company", "Company");
+  populate("f-reactor", "Reactor");
+  populate("f-project", "Project");
+  populate("f-partner", "Partners");
+  populate("f-sig",     "Significance");
+  ["f-company","f-reactor","f-project","f-partner","f-sig"].forEach(id => {
+    document.getElementById(id).addEventListener("change", render);
   });
-  populateSel("f-partner", [...partnerSet].sort());
-  populateSel("f-sig", [...new Set(allDeals.map(d => d.Significance).filter(Boolean))].sort());
 }
-// ── Stats ──────────────────────────────────────────────────────────────────
+// ── Stats ───────────────────────────────────────────────────────────────────
 function updateStats() {
   document.getElementById("stat-deploy").textContent = allDeals.filter(d => d.Significance === "Deployment").length;
   document.getElementById("stat-market").textContent = allDeals.filter(d => d.Significance === "Market development").length;
   document.getElementById("stat-signal").textContent = allDeals.filter(d => d.Significance === "Signaling").length;
   document.getElementById("stat-total").textContent  = allDeals.length;
 }
-// ── Render table ───────────────────────────────────────────────────────────
+// ── Render table ────────────────────────────────────────────────────────────
 function render() {
-  const fc  = document.getElementById("f-company").value;
-  const fr  = document.getElementById("f-reactor").value;
-  const fp  = document.getElementById("f-project").value;
+  const fc = document.getElementById("f-company").value;
+  const fr = document.getElementById("f-reactor").value;
+  const fp = document.getElementById("f-project").value;
   const fpa = document.getElementById("f-partner").value;
-  const fs  = document.getElementById("f-sig").value;
+  const fs = document.getElementById("f-sig").value;
   filtered = allDeals
     .filter(d =>
-      (fc  === "All" || d.Company      === fc) &&
-      (fr  === "All" || d.Reactor      === fr) &&
-      (fp  === "All" || d.Project      === fp) &&
-      (fpa === "All" || (d.Partners && d.Partners.split(";").map(p => p.trim()).includes(fpa))) &&
+      (fc  === "All" || d.Company      === fc)  &&
+      (fr  === "All" || d.Reactor      === fr)  &&
+      (fp  === "All" || d.Project      === fp)  &&
+      (fpa === "All" || d.Partners     === fpa) &&
       (fs  === "All" || d.Significance === fs)
     )
-    // CHANGED: use parseDate() instead of new Date() for M/D/YYYY support
     .sort((a, b) => parseDate(b.Date) - parseDate(a.Date));
   document.getElementById("table-count").innerHTML =
     `Showing <strong style="color:#0a1828">${filtered.length}</strong> of ${allDeals.length} entries`;
@@ -299,7 +295,7 @@ function render() {
     </div>
   `).join("");
 }
-// ── Modal ──────────────────────────────────────────────────────────────────
+// ── Modal ───────────────────────────────────────────────────────────────────
 function drow(label, val) {
   if (!val) return "";
   return `<div class="drow"><span class="drow-label">${label}</span><span class="drow-val">${val}</span></div>`;
@@ -334,12 +330,12 @@ function openModal(type, idx) {
   } else if (type === "project") {
     title = d.Project;
     const pr = projectsMap[d.Project] || {};
-    body = drow("Site",         pr["Site"]         || d["Location"] || "—") +
-           drow("State",        pr["State"]        || "—") +
-           drow("Country",      d["Country"]       || "—") +
-           drow("Project Type", pr["Project Type"] || "—") +
-           drow("Reactor",      pr["Reactor"]      || d["Reactor"] || "—") +
-           drow("Timeline",     d["Timeline"]      || "—");
+    body = drow("Site",         pr["Site"]          || d["Location"] || "—") +
+           drow("State",        pr["State"]         || "—") +
+           drow("Country",      d["Country"]        || "—") +
+           drow("Project Type", pr["Project Type"]  || "—") +
+           drow("Reactor",      pr["Reactor"]       || d["Reactor"] || "—") +
+           drow("Timeline",     d["Timeline"]       || "—");
     const notes = pr["Notes"] || d["Summary"] || "";
     if (notes && !notes.toLowerCase().includes("auto-created")) {
       body += `<p class="modal-desc">${notes}</p>`;
@@ -363,7 +359,8 @@ function openModal(type, idx) {
   }
   document.getElementById("modal-title").textContent = title;
   document.getElementById("modal-body").innerHTML = body;
-  document.getElementById("modal-overlay").classList.add("open");
+  const overlay = document.getElementById("modal-overlay");
+  overlay.classList.add("open");
 }
 function closeModal() {
   document.getElementById("modal-overlay").classList.remove("open");
@@ -373,7 +370,7 @@ document.getElementById("modal-overlay").addEventListener("click", function(e) {
 });
 document.getElementById("modal-close-btn").addEventListener("click", closeModal);
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
-// ── Load data ──────────────────────────────────────────────────────────────
+// ── Load data ───────────────────────────────────────────────────────────────
 async function fetchCSV(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -382,12 +379,14 @@ async function fetchCSV(url) {
 async function loadData() {
   const body = document.getElementById("table-body");
   try {
+    // Fetch all 4 CSVs in parallel at startup
     const [announcements, companies, reactors, projects] = await Promise.all([
       fetchCSV(SHEET_CSV_URL),
       fetchCSV(COMPANIES_URL),
       fetchCSV(REACTORS_URL),
       fetchCSV(PROJECTS_URL),
     ]);
+    // Build lookup maps keyed by entity name
     companies.forEach(r => { if (r["Company Name"]) companiesMap[r["Company Name"]] = r; });
     reactors.forEach(r  => { if (r["Reactor Name"])  reactorsMap[r["Reactor Name"]]  = r; });
     projects.forEach(r  => { if (r["Project Name"])  projectsMap[r["Project Name"]]  = r; });
