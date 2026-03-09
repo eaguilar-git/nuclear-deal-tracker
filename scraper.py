@@ -1,5 +1,5 @@
 """
-nuclear_scraper.py — OpenAI version
+nuclear_scraper.py
 """
 
 import os
@@ -12,7 +12,7 @@ from email.utils import parsedate_to_datetime
 import feedparser
 import requests
 from bs4 import BeautifulSoup
-from openai import OpenAI
+import anthropic
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -55,17 +55,17 @@ DEAL_COLUMNS = [
 ]
 
 SYSTEM_PROMPT = """You are a nuclear energy industry analyst.
-Extract structured deal data from the article. Return JSON only.
+Extract structured deal data from the article. Return JSON only - no markdown fences, no explanation.
 
-If NOT a nuclear deal: {"skip": true}
+If NOT a concrete nuclear deal/partnership/funding/licensing milestone: {"skip": true}
 
 If IS a deal:
 {
   "skip": false,
   "company": "primary reactor developer",
   "reactor": "reactor technology name",
-  "project": "project or site name, or Program-level",
-  "location": "City, State",
+  "project": "project or site name",
+  "location": "City, State or region",
   "country": "deployment country",
   "developer_country": "developer country",
   "partners": "key partners comma-separated",
@@ -74,11 +74,11 @@ If IS a deal:
   "significance": "Signaling | Market development | Deployment",
   "reactor_capacity_mw": "numeric MW or unknown",
   "deployment_year": "expected year or unknown",
-  "summary": "1-2 sentence summary",
+  "summary": "1-2 sentence factual summary",
   "source": "article URL"
 }
 
-Significance: Signaling=MOU/LOI/study, Market development=funded contract/license/EPC, Deployment=construction permit/financial close"""
+Significance: Signaling=MOU/LOI/study, Market development=funded contract/license/EPC award, Deployment=construction permit/financial close/commercial operation"""
 
 
 def clean_text(t):
@@ -98,7 +98,7 @@ def fetch_article_text(url):
         for tag in soup(["nav","footer","script","style","header","aside"]):
             tag.decompose()
         article = soup.find("article") or soup.find("main") or soup.body
-        return clean_text(article.get_text(separator=" ", strip=True))[:9000] if article else ""
+        return clean_text(article.get_text(separator=" ", strip=True))[:6000] if article else ""
     except Exception as e:
         print("fetch error:", e)
         return ""
@@ -109,20 +109,21 @@ def extract_deal(client, article):
 URL: {article['link']}
 Published: {article.get('pub','')}
 Summary: {article.get('summary','')}
-Body: {body[:4000]}"""
+Body: {body[:3000]}"""
     try:
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-            max_tokens=1000,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user",   "content": user_msg},
-            ],
+        resp = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=600,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_msg}],
         )
-        return json.loads(resp.choices[0].message.content.strip())
+        raw = resp.content[0].text.strip()
+        # strip any accidental markdown fences
+        raw = re.sub(r"^```json\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+        return json.loads(raw)
     except Exception as e:
-        print("OpenAI error:", e)
+        print("Claude error:", e)
         return None
 
 def get_gsheet_client():
@@ -153,12 +154,12 @@ def append_deals(spreadsheet, deals):
         return
     rows = [[d.get(c,"unknown") for c in DEAL_COLUMNS] for d in deals]
     spreadsheet.worksheet(SHEET_DEALS).append_rows(rows)
-    print(f"  -> Appended {len(rows)} rows")
+    print(f"  -> Appended {len(rows)} rows to sheet")
 
 def scrape_feeds():
     candidates = []
     for feed_cfg in FEEDS:
-        print(f"  Fetching: {feed_cfg['name']} ...", end=" ")
+        print(f"  Fetching: {feed_cfg['name']} ...", end=" ", flush=True)
         try:
             feed = feedparser.parse(feed_cfg["url"])
             matched = 0
@@ -181,7 +182,7 @@ def scrape_feeds():
 def run():
     today = datetime.date.today().isoformat()
     now   = datetime.datetime.utcnow().isoformat()
-    print(f"\n{'='*60}\nNuclear Deal Scraper (OpenAI) — {today}\n{'='*60}\n")
+    print(f"\n{'='*60}\nNuclear Deal Scraper — {today}\n{'='*60}\n")
 
     gc    = get_gsheet_client()
     sheet = gc.open_by_key(os.environ["GOOGLE_SHEET_ID"])
@@ -192,7 +193,7 @@ def run():
     next_id  = len(existing) + 1
     print(f"  {len(seen)} seen, {len(existing)} existing deals\n")
 
-    client     = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    client     = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     candidates = scrape_feeds()
     print()
 
