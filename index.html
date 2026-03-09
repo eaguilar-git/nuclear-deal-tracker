@@ -1,1 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nuclear Deal Tracker — EFI Foundation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Source Sans 3', sans-serif; background: #f4f7fa; color: #1a2840; min-height: 100vh; }
 
+  /* ── Nav ── */
+  nav { background: #fff; border-bottom: 1px solid #dce8f0; padding: 0 48px; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 200; }
+  .nav-logo { display: flex; align-items: center; gap: 10px; }
+  .nav-icon { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg,#1a5fa8,#0a3060); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .nav-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #1a5fa8; text-transform: uppercase; line-height: 1.2; }
+  .nav-sub { font-size: 9px; letter-spacing: 0.1em; color: #8a9db5; text-transform: uppercase; }
+  .nav-label { font-size: 12px; color: #8a9db5; letter-spacing: 0.04em; }
+
+  /* ── Hero ── */
+  .hero { background: linear-gradient(135deg,#05152e 0%,#0a2a5a 55%,#0d3878 100%); padding: 60px 48px 52px; position: relative; overflow: hidden; }
+  .hero-watermark { position: absolute; right: -60px; top: -30px; font-family: 'Playfair Display', serif; font-size: 240px; font-weight: 800; color: rgba(255,255,255,0.025); line-height: 1; user-select: none; pointer-events: none; white-space: nowrap; }
+  .hero-inner { max-width: 1280px; margin: 0 auto; }
+  .hero-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: #5aabff; font-weight: 700; margin-bottom: 14px; }
+  .hero h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 50px; font-weight: 700; color: #fff; line-height: 1.15; margin-bottom: 18px; max-width: 660px; }
+  .hero p { font-size: 16px; color: #a8c4e0; line-height: 1.75; max-width: 540px; margin-bottom: 36px; }
+  .stats { display: flex; gap: 12px; flex-wrap: wrap; }
+  .stat-pill { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.13); border-radius: 99px; padding: 8px 20px; display: flex; align-items: center; gap: 10px; }
+  .stat-n { font-size: 22px; font-weight: 700; color: #fff; font-family: 'Playfair Display', serif; }
+  .stat-l { font-size: 12px; color: #a8c4e0; }
+
+  /* ── Content ── */
+  .content { max-width: 1280px; margin: 0 auto; padding: 40px 48px 80px; }
+
+  /* ── Filters ── */
+  .filters { background: #fff; border: 1px solid #dce8f0; border-radius: 4px; padding: 22px 28px; margin-bottom: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .filter-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: #6b7c93; font-weight: 700; margin-bottom: 14px; }
+  .filter-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+  .sel-wrap label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: #6b7c93; font-weight: 700; margin-bottom: 4px; }
+  .sel-wrap select { width: 100%; border: 1px solid #c8d8e8; border-radius: 6px; padding: 7px 28px 7px 10px; font-size: 13px; color: #1a2840; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 5 5-5' stroke='%236b7c93' stroke-width='1.5' fill='none'/%3E%3C/svg%3E") no-repeat right 10px center; appearance: none; outline: none; cursor: pointer; font-family: inherit; }
+
+  /* ── Table ── */
+  .table-wrap { background: #fff; border: 1px solid #dce8f0; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .table-header { padding: 14px 28px; border-bottom: 2px solid #1a5fa8; display: flex; align-items: center; justify-content: space-between; }
+  .table-count { font-size: 13px; color: #3a5268; font-weight: 600; }
+  .legend { display: flex; gap: 16px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #6b7c93; }
+  .legend-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .col-heads { display: grid; grid-template-columns: var(--grid); padding: 10px 28px; background: #f4f8fc; border-bottom: 1px solid #dce8f0; }
+  .col-head { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: #6b7c93; font-weight: 700; }
+  .row { display: grid; grid-template-columns: var(--grid); padding: 16px 28px; border-bottom: 1px solid #edf2f8; align-items: center; transition: background 0.1s; }
+  .row:hover { background: #f8fbfe; }
+  .row:last-child { border-bottom: none; }
+  .cell { font-size: 13px; color: #3a5268; }
+  .cell-date { font-size: 12px; color: #8a9db5; font-variant-numeric: tabular-nums; }
+  .lbtn { background: none; border: none; padding: 0; cursor: pointer; color: #1a5fa8; font-size: 13px; text-decoration: underline; text-decoration-color: rgba(26,95,168,0.5); transition: color 0.12s; text-align: left; font-family: inherit; }
+  .lbtn:hover { color: #0f3d78; text-decoration-color: #0f3d78; }
+  .empty { padding: 48px 28px; text-align: center; font-size: 14px; color: #8a9db5; }
+
+  /* ── Badge ── */
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
+  .badge-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .sig-deployment      { color: #1a6b3a; background: #e8f5ee; }
+  .sig-deployment .badge-dot      { background: #2e9e57; }
+  .sig-market          { color: #7a4a00; background: #fef3e0; }
+  .sig-market .badge-dot          { background: #d4820a; }
+  .sig-signaling       { color: #1a3a5c; background: #e8f0f8; }
+  .sig-signaling .badge-dot       { background: #4a7aaa; }
+
+  /* ── Modal ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(5,15,35,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(3px); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal-box { background: #fff; border-radius: 4px; padding: 40px 44px; width: 100%; max-width: 560px; box-shadow: 0 24px 64px rgba(0,0,0,0.22); border: 1px solid #dce8f0; max-height: 88vh; overflow-y: auto; transform: translateY(16px); transition: transform 0.2s; }
+  .modal-overlay.open .modal-box { transform: translateY(0); }
+  .modal-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.16em; color: #1a5fa8; font-weight: 700; margin-bottom: 8px; }
+  .modal-title { font-family: 'Playfair Display', Georgia, serif; font-size: 24px; font-weight: 700; color: #0a1828; line-height: 1.25; margin-bottom: 24px; }
+  .drow { display: grid; grid-template-columns: 140px 1fr; gap: 16px; padding: 10px 0; border-bottom: 1px solid #edf2f8; }
+  .drow-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: #6b7c93; font-weight: 700; padding-top: 1px; }
+  .drow-val { font-size: 14px; color: #1a2840; line-height: 1.5; }
+  .modal-desc { margin-top: 20px; font-size: 14px; color: #3a5268; line-height: 1.75; }
+  .modal-link { display: inline-block; margin-top: 16px; font-size: 13px; color: #1a5fa8; }
+  .modal-footer { margin-top: 28px; display: flex; justify-content: flex-end; }
+  .modal-close { background: none; border: 1px solid #c8d8e8; border-radius: 99px; padding: 7px 20px; font-size: 13px; color: #3a5268; cursor: pointer; font-family: inherit; }
+  .modal-close:hover { background: #f4f7fa; }
+
+  /* ── Loading ── */
+  .loading { padding: 80px 28px; text-align: center; }
+  .loading-spinner { width: 36px; height: 36px; border: 3px solid #dce8f0; border-top-color: #1a5fa8; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 14px; color: #8a9db5; }
+  .error-msg { padding: 40px 28px; text-align: center; font-size: 14px; color: #c0392b; }
+
+  /* ── Footer ── */
+  .footer { margin-top: 32px; padding-top: 24px; border-top: 1px solid #dce8f0; display: flex; justify-content: space-between; align-items: center; }
+  .footer-left { font-size: 12px; color: #8a9db5; }
+  .footer-link { font-size: 12px; color: #1a5fa8; text-decoration: none; }
+  .footer-link:hover { text-decoration: underline; }
+
+  @media (max-width: 900px) {
+    nav, .hero, .content { padding-left: 20px; padding-right: 20px; }
+    .filter-grid { grid-template-columns: repeat(2, 1fr); }
+    .hero h1 { font-size: 32px; }
+    .col-heads, .row { display: none; }
+    .mobile-cards { display: block; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-logo">
+    <div class="nav-icon">⚛</div>
+    <div>
+      <div class="nav-title">EFI Foundation</div>
+      <div class="nav-sub">Nuclear Scaling Initiative</div>
+    </div>
+  </div>
+  <span class="nav-label">Advanced Reactor Pipeline Tracker</span>
+</nav>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-watermark">Nuclear</div>
+  <div class="hero-inner">
+    <div class="hero-eyebrow">Advanced Reactor Pipeline</div>
+    <h1>Nuclear Deal Tracker</h1>
+    <p>Tracking commercialization milestones, partnerships, and deployment announcements across U.S. advanced nuclear reactor developers.</p>
+    <div class="stats" id="stats">
+      <div class="stat-pill"><span class="stat-n" id="stat-deploy">—</span><span class="stat-l">Deployment</span></div>
+      <div class="stat-pill"><span class="stat-n" id="stat-market">—</span><span class="stat-l">Market development</span></div>
+      <div class="stat-pill"><span class="stat-n" id="stat-signal">—</span><span class="stat-l">Signaling</span></div>
+      <div class="stat-pill"><span class="stat-n" id="stat-total">—</span><span class="stat-l">Total entries</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Content -->
+<div class="content">
+  <!-- Filters -->
+  <div class="filters">
+    <div class="filter-label">Filter Results</div>
+    <div class="filter-grid">
+      <div class="sel-wrap"><label>Company</label><select id="f-company"><option>All</option></select></div>
+      <div class="sel-wrap"><label>Reactor</label><select id="f-reactor"><option>All</option></select></div>
+      <div class="sel-wrap"><label>Project</label><select id="f-project"><option>All</option></select></div>
+      <div class="sel-wrap"><label>Partner</label><select id="f-partner"><option>All</option></select></div>
+      <div class="sel-wrap"><label>Significance</label><select id="f-sig"><option>All</option></select></div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <div class="table-header">
+      <span class="table-count" id="table-count">Loading…</span>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-dot" style="background:#2e9e57"></span>Deployment</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#d4820a"></span>Market development</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#4a7aaa"></span>Signaling</div>
+      </div>
+    </div>
+    <div class="col-heads" style="--grid: 1fr 0.85fr 1.2fr 1.5fr 0.75fr 0.9fr 1.1fr">
+      <div class="col-head">Company</div>
+      <div class="col-head">Reactor</div>
+      <div class="col-head">Project / Site</div>
+      <div class="col-head">Announcement</div>
+      <div class="col-head">Partners</div>
+      <div class="col-head">Date</div>
+      <div class="col-head">Significance</div>
+    </div>
+    <div id="table-body">
+      <div class="loading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading data from Google Sheets…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span class="footer-left">EFI Foundation · Nuclear Scaling Initiative · Updated daily</span>
+    <a href="https://efifoundation.org" target="_blank" rel="noreferrer" class="footer-link">efifoundation.org →</a>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-box" id="modal-box">
+    <div class="modal-tag" id="modal-tag"></div>
+    <div class="modal-title" id="modal-title"></div>
+    <div id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="modal-close" id="modal-close-btn">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG — paste your published CSV URL here ─────────────────────────────
+// File → Share → Publish to web → Announcements tab → CSV → copy URL
+const SHEET_CSV_URL = "PASTE_YOUR_CSV_URL_HERE";
+// ──────────────────────────────────────────────────────────────────────────
+
+let allDeals = [];
+let filtered = [];
+
+// ── CSV parser ──────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split("\n");
+  const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+  return lines.slice(1).map(line => {
+    // Handle quoted fields with commas inside
+    const fields = [];
+    let cur = "", inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { fields.push(cur.trim()); cur = ""; }
+      else { cur += ch; }
+    }
+    fields.push(cur.trim());
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = (fields[i] || "").replace(/^"|"$/g, ""));
+    return obj;
+  }).filter(r => r["ann_id"] && r["ann_id"] !== "ann_id");
+}
+
+// ── Date formatter ──────────────────────────────────────────────────────────
+function fmtDate(d) {
+  if (!d || d === "baseline") return "—";
+  try { return new Date(d + "T00:00:00").toLocaleDateString("en-US", { year:"numeric", month:"short", day:"numeric" }); }
+  catch { return d; }
+}
+
+// ── Badge ───────────────────────────────────────────────────────────────────
+function badge(sig) {
+  const map = {
+    "Deployment":         "sig-deployment",
+    "Market development": "sig-market",
+    "Signaling":          "sig-signaling",
+  };
+  const cls = map[sig] || "sig-signaling";
+  return `<span class="badge ${cls}"><span class="badge-dot"></span>${sig || "—"}</span>`;
+}
+
+// ── Populate filters ────────────────────────────────────────────────────────
+function populate(id, key) {
+  const sel = document.getElementById(id);
+  const vals = ["All", ...new Set(allDeals.map(d => d[key]).filter(Boolean).sort())];
+  sel.innerHTML = vals.map(v => `<option>${v}</option>`).join("");
+}
+
+function buildFilters() {
+  populate("f-company", "Company");
+  populate("f-reactor", "Reactor");
+  populate("f-project", "Project");
+  populate("f-partner", "Partners");
+  populate("f-sig",     "Significance");
+  ["f-company","f-reactor","f-project","f-partner","f-sig"].forEach(id => {
+    document.getElementById(id).addEventListener("change", render);
+  });
+}
+
+// ── Stats ───────────────────────────────────────────────────────────────────
+function updateStats() {
+  document.getElementById("stat-deploy").textContent = allDeals.filter(d => d.Significance === "Deployment").length;
+  document.getElementById("stat-market").textContent = allDeals.filter(d => d.Significance === "Market development").length;
+  document.getElementById("stat-signal").textContent = allDeals.filter(d => d.Significance === "Signaling").length;
+  document.getElementById("stat-total").textContent  = allDeals.length;
+}
+
+// ── Render table ────────────────────────────────────────────────────────────
+function render() {
+  const fc = document.getElementById("f-company").value;
+  const fr = document.getElementById("f-reactor").value;
+  const fp = document.getElementById("f-project").value;
+  const fpa = document.getElementById("f-partner").value;
+  const fs = document.getElementById("f-sig").value;
+
+  filtered = allDeals
+    .filter(d =>
+      (fc  === "All" || d.Company      === fc)  &&
+      (fr  === "All" || d.Reactor      === fr)  &&
+      (fp  === "All" || d.Project      === fp)  &&
+      (fpa === "All" || d.Partners     === fpa) &&
+      (fs  === "All" || d.Significance === fs)
+    )
+    .sort((a, b) => new Date(b.Date || 0) - new Date(a.Date || 0));
+
+  document.getElementById("table-count").innerHTML =
+    `Showing <strong style="color:#0a1828">${filtered.length}</strong> of ${allDeals.length} entries`;
+
+  const body = document.getElementById("table-body");
+  if (filtered.length === 0) {
+    body.innerHTML = `<div class="empty">No results match the current filters.</div>`;
+    return;
+  }
+
+  const grid = "1fr 0.85fr 1.2fr 1.5fr 0.75fr 0.9fr 1.1fr";
+  body.innerHTML = filtered.map((d, i) => `
+    <div class="row" style="--grid:${grid}" data-idx="${i}">
+      <button class="lbtn" onclick="openModal('company', ${i})">${d.Company || "—"}</button>
+      <button class="lbtn" onclick="openModal('reactor', ${i})">${d.Reactor || "—"}</button>
+      <button class="lbtn" onclick="openModal('project', ${i})">${d.Project || "—"}</button>
+      <button class="lbtn" onclick="openModal('deal', ${i})">${d["Deal / Announcement"] || "—"}</button>
+      <span class="cell">${d.Partners || "—"}</span>
+      <span class="cell-date">${fmtDate(d.Date)}</span>
+      ${badge(d.Significance)}
+    </div>
+  `).join("");
+}
+
+// ── Modal ───────────────────────────────────────────────────────────────────
+function drow(label, val) {
+  if (!val) return "";
+  return `<div class="drow"><span class="drow-label">${label}</span><span class="drow-val">${val}</span></div>`;
+}
+
+function openModal(type, idx) {
+  const d = filtered[idx];
+  const tags = { company:"Company Profile", reactor:"Reactor Overview", project:"Project Details", deal:"Announcement" };
+  document.getElementById("modal-tag").textContent = tags[type];
+
+  let title = "", body = "";
+
+  if (type === "company") {
+    title = d.Company;
+    body = drow("Type", d["Type"]) + drow("Headquarters", d["Location"]) + drow("Partners", d["Partners"]);
+  } else if (type === "reactor") {
+    title = d.Reactor;
+    body = drow("Category", d["Category"]) + drow("Reactor", d["Reactor"]) + drow("NRC Status", d["NRC Status"]);
+  } else if (type === "project") {
+    title = d.Project;
+    body = drow("Site", d["Location"]) + drow("Country", d["Country"]) + drow("Timeline", d["Timeline"]);
+    if (d.Summary) body += `<p class="modal-desc">${d.Summary}</p>`;
+  } else if (type === "deal") {
+    title = d["Deal / Announcement"];
+    body = drow("Company", d.Company) +
+           drow("Reactor", d.Reactor) +
+           drow("Project", d.Project) +
+           drow("Partners", d.Partners) +
+           drow("Location", d.Location) +
+           drow("Country", d.Country) +
+           drow("Date", fmtDate(d.Date)) +
+           drow("Capital", d["Capital Sources"]) +
+           drow("NRC Status", d["NRC Status"]) +
+           drow("Timeline", d.Timeline);
+    if (d.Summary) body += `<p class="modal-desc">${d.Summary}</p>`;
+    if (d.Source && d.Source.startsWith("http")) {
+      body += `<a href="${d.Source}" target="_blank" rel="noreferrer" class="modal-link">View source →</a>`;
+    }
+  }
+
+  document.getElementById("modal-title").textContent = title;
+  document.getElementById("modal-body").innerHTML = body;
+
+  const overlay = document.getElementById("modal-overlay");
+  overlay.classList.add("open");
+}
+
+function closeModal() {
+  document.getElementById("modal-overlay").classList.remove("open");
+}
+
+document.getElementById("modal-overlay").addEventListener("click", function(e) {
+  if (e.target === this) closeModal();
+});
+document.getElementById("modal-close-btn").addEventListener("click", closeModal);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+// ── Load data ───────────────────────────────────────────────────────────────
+async function loadData() {
+  const body = document.getElementById("table-body");
+
+  if (SHEET_CSV_URL === "PASTE_YOUR_CSV_URL_HERE") {
+    body.innerHTML = `<div class="error-msg">
+      ⚠️ Open this file in a text editor and replace <strong>PASTE_YOUR_CSV_URL_HERE</strong>
+      with your Google Sheet published CSV URL.<br><br>
+      File → Share → Publish to web → Announcements tab → CSV format → Publish → copy URL
+    </div>`;
+    document.getElementById("table-count").textContent = "No data source configured";
+    return;
+  }
+
+  try {
+    const res = await fetch(SHEET_CSV_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    allDeals = parseCSV(text);
+    buildFilters();
+    updateStats();
+    render();
+  } catch (err) {
+    body.innerHTML = `<div class="error-msg">
+      ❌ Could not load data: ${err.message}<br><br>
+      Make sure your Google Sheet is published to web as CSV and the URL is correct.
+    </div>`;
+    document.getElementById("table-count").textContent = "Error loading data";
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
