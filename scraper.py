@@ -161,6 +161,7 @@ def ensure_tabs(spreadsheet):
 def load_tab(spreadsheet, tab_name):
     """Return list of dicts (one per row, using header row as keys)."""
     ws = spreadsheet.worksheet(tab_name)
+    time.sleep(1)  # avoid read quota bursts
     return ws.get_all_records()
 
 
@@ -170,16 +171,39 @@ def load_lookup(spreadsheet, tab_name, id_col, name_col):
     return [(r[id_col], r[name_col]) for r in records if r.get(id_col) and r.get(name_col)]
 
 
-def next_id(spreadsheet, tab_name, id_col):
+# ── In-memory ID counters (loaded once at startup, incremented locally) ────────
+_id_counters = {}
+
+def init_id_counter(spreadsheet, tab_name, id_col):
+    """Load the current max ID from the sheet once and cache it."""
     records = load_tab(spreadsheet, tab_name)
-    ids = [r[id_col] for r in records if str(r.get(id_col, "")).isdigit()]
-    return max([int(i) for i in ids], default=0) + 1
+    ids = [int(r[id_col]) for r in records if str(r.get(id_col, "")).lstrip('-').isdigit()]
+    _id_counters[tab_name] = max(ids, default=0)
+
+def next_id(spreadsheet, tab_name, id_col):
+    """Return next ID using in-memory counter — no extra API call."""
+    if tab_name not in _id_counters:
+        init_id_counter(spreadsheet, tab_name, id_col)
+    _id_counters[tab_name] += 1
+    return _id_counters[tab_name]
+
+
+# ── Cached worksheet handles ───────────────────────────────────────────────────
+_ws_cache = {}
+
+def get_ws(spreadsheet, tab_name):
+    """Return cached worksheet object to avoid repeated metadata fetches."""
+    if tab_name not in _ws_cache:
+        _ws_cache[tab_name] = spreadsheet.worksheet(tab_name)
+        time.sleep(0.5)
+    return _ws_cache[tab_name]
 
 
 def append_row(spreadsheet, tab_name, cols, values_dict):
     """Append a row to a tab, ordered by cols list."""
     row = [values_dict.get(c, "") for c in cols]
-    spreadsheet.worksheet(tab_name).append_row(row)
+    get_ws(spreadsheet, tab_name).append_row(row)
+    time.sleep(0.5)  # avoid write quota bursts
 
 
 def load_seen_hashes(spreadsheet):
@@ -189,7 +213,8 @@ def load_seen_hashes(spreadsheet):
 
 def save_seen(spreadsheet, rows):
     if rows:
-        spreadsheet.worksheet(TAB_SEEN).append_rows(rows)
+        get_ws(spreadsheet, TAB_SEEN).append_rows(rows)
+        time.sleep(0.5)
 
 
 # ─── UPSERT LOGIC ─────────────────────────────────────────────────────────────
@@ -408,6 +433,14 @@ def run():
     existing_ann   = load_tab(sheet, TAB_ANNOUNCEMENTS)
     next_ann_id    = max([int(r["ann_id"]) for r in existing_ann if str(r.get("ann_id","")).isdigit()], default=0) + 1
 
+    # ── Pre-cache worksheet handles & ID counters to avoid per-upsert API hits ──
+    _id_counters[TAB_COMPANIES]     = max([int(cid) for cid, _ in company_lookup], default=0)
+    _id_counters[TAB_REACTORS]      = max([int(rid) for rid, _ in reactor_lookup], default=0)
+    _id_counters[TAB_PROJECTS]      = max([int(pid) for pid, _ in project_lookup], default=0)
+    _id_counters[TAB_ANNOUNCEMENTS] = next_ann_id - 1
+    for tab in [TAB_COMPANIES, TAB_REACTORS, TAB_PROJECTS, TAB_ANNOUNCEMENTS, TAB_SEEN, TAB_REVIEW]:
+        get_ws(sheet, tab)  # pre-warm the cache
+
     print(f"  {len(company_lookup)} companies, {len(reactor_lookup)} reactors, {len(project_lookup)} projects")
     print(f"  {len(seen_hashes)} seen hashes, {len(existing_ann)} existing announcements\n")
 
@@ -485,7 +518,7 @@ def run():
         }.get(result.get("significance", ""), "⚪")
 
         ann = {
-            "ann_id":            next_ann_id,
+            "ann_id":            next_id(sheet, TAB_ANNOUNCEMENTS, "ann_id"),
             "Date":              result.get("date", ""),
             "Company":           company_name,
             "Reactor":           reactor_name if reactor_name.lower() not in ("unknown","tbd","") else "",
@@ -504,7 +537,6 @@ def run():
             "scraped_at":        now,
         }
         new_ann.append(ann)
-        next_ann_id += 1
 
         # Keep lookups fresh for subsequent articles in same run
         if company_name and company_name not in company_names:
