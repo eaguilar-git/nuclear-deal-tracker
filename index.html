@@ -9,12 +9,14 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Source Sans 3', sans-serif; background: #f4f7fa; color: #1a2840; min-height: 100vh; }
+  /* ── Nav ── */
   nav { background: #fff; border-bottom: 1px solid #dce8f0; padding: 0 48px; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 200; }
   .nav-logo { display: flex; align-items: center; gap: 10px; }
   .nav-icon { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg,#1a5fa8,#0a3060); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
   .nav-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #1a5fa8; text-transform: uppercase; line-height: 1.2; }
   .nav-sub { font-size: 9px; letter-spacing: 0.1em; color: #8a9db5; text-transform: uppercase; }
   .nav-label { font-size: 12px; color: #8a9db5; letter-spacing: 0.04em; }
+  /* ── Hero ── */
   .hero { background: linear-gradient(135deg,#05152e 0%,#0a2a5a 55%,#0d3878 100%); padding: 60px 48px 52px; position: relative; overflow: hidden; }
   .hero-watermark { position: absolute; right: -60px; top: -30px; font-family: 'Playfair Display', serif; font-size: 240px; font-weight: 800; color: rgba(255,255,255,0.025); line-height: 1; user-select: none; pointer-events: none; white-space: nowrap; }
   .hero-inner { max-width: 1280px; margin: 0 auto; }
@@ -25,12 +27,15 @@
   .stat-pill { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.13); border-radius: 99px; padding: 8px 20px; display: flex; align-items: center; gap: 10px; }
   .stat-n { font-size: 22px; font-weight: 700; color: #fff; font-family: 'Playfair Display', serif; }
   .stat-l { font-size: 12px; color: #a8c4e0; }
+  /* ── Content ── */
   .content { max-width: 1280px; margin: 0 auto; padding: 40px 48px 80px; }
+  /* ── Filters ── */
   .filters { background: #fff; border: 1px solid #dce8f0; border-radius: 4px; padding: 22px 28px; margin-bottom: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
   .filter-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: #6b7c93; font-weight: 700; margin-bottom: 14px; }
   .filter-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
   .sel-wrap label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: #6b7c93; font-weight: 700; margin-bottom: 4px; }
   .sel-wrap select { width: 100%; border: 1px solid #c8d8e8; border-radius: 6px; padding: 7px 28px 7px 10px; font-size: 13px; color: #1a2840; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 5 5-5' stroke='%236b7c93' stroke-width='1.5' fill='none'/%3E%3C/svg%3E") no-repeat right 10px center; appearance: none; outline: none; cursor: pointer; font-family: inherit; }
+  /* ── Table ── */
   .table-wrap { background: #fff; border: 1px solid #dce8f0; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
   .table-header { padding: 14px 28px; border-bottom: 2px solid #1a5fa8; display: flex; align-items: center; justify-content: space-between; }
   .table-count { font-size: 13px; color: #3a5268; font-weight: 600; }
@@ -47,6 +52,7 @@
   .lbtn { background: none; border: none; padding: 0; cursor: pointer; color: #1a5fa8; font-size: 13px; text-decoration: underline; text-decoration-color: rgba(26,95,168,0.5); transition: color 0.12s; text-align: left; font-family: inherit; }
   .lbtn:hover { color: #0f3d78; text-decoration-color: #0f3d78; }
   .empty { padding: 48px 28px; text-align: center; font-size: 14px; color: #8a9db5; }
+  /* ── Badge ── */
   .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
   .badge-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
   .sig-deployment      { color: #1a6b3a; background: #e8f5ee; }
@@ -55,6 +61,7 @@
   .sig-market .badge-dot          { background: #d4820a; }
   .sig-signaling       { color: #1a3a5c; background: #e8f0f8; }
   .sig-signaling .badge-dot       { background: #4a7aaa; }
+  /* ── Modal ── */
   .modal-overlay { position: fixed; inset: 0; background: rgba(5,15,35,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(3px); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
   .modal-overlay.open { opacity: 1; pointer-events: all; }
   .modal-box { background: #fff; border-radius: 4px; padding: 40px 44px; width: 100%; max-width: 560px; box-shadow: 0 24px 64px rgba(0,0,0,0.22); border: 1px solid #dce8f0; max-height: 88vh; overflow-y: auto; transform: translateY(16px); transition: transform 0.2s; }
@@ -69,11 +76,13 @@
   .modal-footer { margin-top: 28px; display: flex; justify-content: flex-end; }
   .modal-close { background: none; border: 1px solid #c8d8e8; border-radius: 99px; padding: 7px 20px; font-size: 13px; color: #3a5268; cursor: pointer; font-family: inherit; }
   .modal-close:hover { background: #f4f7fa; }
+  /* ── Loading ── */
   .loading { padding: 80px 28px; text-align: center; }
   .loading-spinner { width: 36px; height: 36px; border: 3px solid #dce8f0; border-top-color: #1a5fa8; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-text { font-size: 14px; color: #8a9db5; }
   .error-msg { padding: 40px 28px; text-align: center; font-size: 14px; color: #c0392b; }
+  /* ── Footer ── */
   .footer { margin-top: 32px; padding-top: 24px; border-top: 1px solid #dce8f0; display: flex; justify-content: space-between; align-items: center; }
   .footer-left { font-size: 12px; color: #8a9db5; }
   .footer-link { font-size: 12px; color: #1a5fa8; text-decoration: none; }
@@ -116,6 +125,7 @@
 </div>
 <!-- Content -->
 <div class="content">
+  <!-- Filters -->
   <div class="filters">
     <div class="filter-label">Filter Results</div>
     <div class="filter-grid">
@@ -126,6 +136,7 @@
       <div class="sel-wrap"><label>Significance</label><select id="f-sig"><option>All</option></select></div>
     </div>
   </div>
+  <!-- Table -->
   <div class="table-wrap">
     <div class="table-header">
       <span class="table-count" id="table-count">Loading…</span>
@@ -151,6 +162,7 @@
       </div>
     </div>
   </div>
+  <!-- Footer -->
   <div class="footer">
     <span class="footer-left">EFI Foundation · Nuclear Scaling Initiative · Updated daily</span>
     <a href="https://efifoundation.org" target="_blank" rel="noreferrer" class="footer-link">efifoundation.org →</a>
@@ -168,19 +180,18 @@
   </div>
 </div>
 <script>
-// ── CONFIG ────────────────────────────────────────────────────────────────
-const SHEET_CSV_URL   = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1192838156&single=true&output=csv";
-const COMPANIES_URL   = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=0&single=true&output=csv";
-const REACTORS_URL    = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1429460762&single=true&output=csv";
-const PROJECTS_URL    = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1132713683&single=true&output=csv";
+// ── CONFIG ─────────────────────────────────────────────────────────────────
+const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1192838156&single=true&output=csv";
+const COMPANIES_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=0&single=true&output=csv";
+const REACTORS_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1429460762&single=true&output=csv";
+const PROJECTS_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1132713683&single=true&output=csv";
 // ──────────────────────────────────────────────────────────────────────────
 let allDeals = [];
 let filtered = [];
 let companiesMap = {};
 let reactorsMap  = {};
 let projectsMap  = {};
-
-// ── CSV parser ──────────────────────────────────────────────────────────────
+// ── CSV parser ─────────────────────────────────────────────────────────────
 function parseCSV(text) {
   const lines = text.trim().split("\n");
   const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
@@ -199,15 +210,13 @@ function parseCSV(text) {
     return obj;
   }).filter(r => r["ann_id"] && r["ann_id"] !== "ann_id");
 }
-
-// ── FIX 1: Date helpers — Google Sheets exports M/D/YYYY e.g. "10/1/2024" ──
+// ── CHANGED: Date helpers — handles M/D/YYYY from Google Sheets ────────────
 function parseDate(d) {
   if (!d) return 0;
   const mdy = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (mdy) return new Date(mdy[3] + "-" + mdy[1].padStart(2,"0") + "-" + mdy[2].padStart(2,"0") + "T00:00:00").getTime();
   return new Date(d + "T00:00:00").getTime() || 0;
 }
-
 function fmtDate(d) {
   if (!d || d === "baseline") return "—";
   try {
@@ -216,8 +225,7 @@ function fmtDate(d) {
     return new Date(ts).toLocaleDateString("en-US", { year:"numeric", month:"short", day:"numeric" });
   } catch(e) { return d; }
 }
-
-// ── Badge ───────────────────────────────────────────────────────────────────
+// ── Badge ──────────────────────────────────────────────────────────────────
 function badge(sig) {
   const map = {
     "Deployment":         "sig-deployment",
@@ -227,19 +235,16 @@ function badge(sig) {
   const cls = map[sig] || "sig-signaling";
   return `<span class="badge ${cls}"><span class="badge-dot"></span>${sig || "—"}</span>`;
 }
-
-// ── FIX 2: Filters — Company from lookup tab; Partners split on semicolons ──
+// ── Build filters ──────────────────────────────────────────────────────────
 function populateSel(id, vals) {
   const sel = document.getElementById(id);
   sel.innerHTML = ["All", ...vals].map(v => `<option>${v}</option>`).join("");
   sel.addEventListener("change", render);
 }
-
 function buildFilters() {
   populateSel("f-company", Object.keys(companiesMap).filter(Boolean).sort());
   populateSel("f-reactor", Object.keys(reactorsMap).filter(Boolean).sort());
   populateSel("f-project", Object.keys(projectsMap).filter(Boolean).sort());
-
   const partnerSet = new Set();
   allDeals.forEach(d => {
     if (d.Partners) d.Partners.split(";").forEach(p => {
@@ -250,43 +255,37 @@ function buildFilters() {
   populateSel("f-partner", [...partnerSet].sort());
   populateSel("f-sig", [...new Set(allDeals.map(d => d.Significance).filter(Boolean))].sort());
 }
-
-// ── Stats ───────────────────────────────────────────────────────────────────
+// ── Stats ──────────────────────────────────────────────────────────────────
 function updateStats() {
   document.getElementById("stat-deploy").textContent = allDeals.filter(d => d.Significance === "Deployment").length;
   document.getElementById("stat-market").textContent = allDeals.filter(d => d.Significance === "Market development").length;
   document.getElementById("stat-signal").textContent = allDeals.filter(d => d.Significance === "Signaling").length;
   document.getElementById("stat-total").textContent  = allDeals.length;
 }
-
-// ── Render table ────────────────────────────────────────────────────────────
+// ── Render table ───────────────────────────────────────────────────────────
 function render() {
   const fc  = document.getElementById("f-company").value;
   const fr  = document.getElementById("f-reactor").value;
   const fp  = document.getElementById("f-project").value;
   const fpa = document.getElementById("f-partner").value;
   const fs  = document.getElementById("f-sig").value;
-
   filtered = allDeals
     .filter(d =>
       (fc  === "All" || d.Company      === fc) &&
       (fr  === "All" || d.Reactor      === fr) &&
       (fp  === "All" || d.Project      === fp) &&
-      // FIX 3: Partners match — split semicolons and check includes
       (fpa === "All" || (d.Partners && d.Partners.split(";").map(p => p.trim()).includes(fpa))) &&
       (fs  === "All" || d.Significance === fs)
     )
+    // CHANGED: use parseDate() instead of new Date() for M/D/YYYY support
     .sort((a, b) => parseDate(b.Date) - parseDate(a.Date));
-
   document.getElementById("table-count").innerHTML =
     `Showing <strong style="color:#0a1828">${filtered.length}</strong> of ${allDeals.length} entries`;
-
   const body = document.getElementById("table-body");
   if (filtered.length === 0) {
     body.innerHTML = `<div class="empty">No results match the current filters.</div>`;
     return;
   }
-
   const grid = "1fr 0.85fr 1.2fr 1.5fr 0.75fr 0.9fr 1.1fr";
   body.innerHTML = filtered.map((d, i) => `
     <div class="row" style="--grid:${grid}" data-idx="${i}">
@@ -300,8 +299,7 @@ function render() {
     </div>
   `).join("");
 }
-
-// ── Modal ───────────────────────────────────────────────────────────────────
+// ── Modal ──────────────────────────────────────────────────────────────────
 function drow(label, val) {
   if (!val) return "";
   return `<div class="drow"><span class="drow-label">${label}</span><span class="drow-val">${val}</span></div>`;
@@ -336,12 +334,12 @@ function openModal(type, idx) {
   } else if (type === "project") {
     title = d.Project;
     const pr = projectsMap[d.Project] || {};
-    body = drow("Site",         pr["Site"]          || d["Location"] || "—") +
-           drow("State",        pr["State"]         || "—") +
-           drow("Country",      d["Country"]        || "—") +
-           drow("Project Type", pr["Project Type"]  || "—") +
-           drow("Reactor",      pr["Reactor"]       || d["Reactor"] || "—") +
-           drow("Timeline",     d["Timeline"]       || "—");
+    body = drow("Site",         pr["Site"]         || d["Location"] || "—") +
+           drow("State",        pr["State"]        || "—") +
+           drow("Country",      d["Country"]       || "—") +
+           drow("Project Type", pr["Project Type"] || "—") +
+           drow("Reactor",      pr["Reactor"]      || d["Reactor"] || "—") +
+           drow("Timeline",     d["Timeline"]      || "—");
     const notes = pr["Notes"] || d["Summary"] || "";
     if (notes && !notes.toLowerCase().includes("auto-created")) {
       body += `<p class="modal-desc">${notes}</p>`;
@@ -375,8 +373,7 @@ document.getElementById("modal-overlay").addEventListener("click", function(e) {
 });
 document.getElementById("modal-close-btn").addEventListener("click", closeModal);
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
-
-// ── Load data ───────────────────────────────────────────────────────────────
+// ── Load data ──────────────────────────────────────────────────────────────
 async function fetchCSV(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
