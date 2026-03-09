@@ -61,9 +61,22 @@ SEED_DEALS = [
 ]
 
 DEAL_COLUMNS = [
-    "id", "date", "company", "reactor", "project",
-    "location", "partners", "deal", "significance",
-    "summary", "source", "scraped_at",
+    "id",
+    "date",
+    "company",
+    "reactor",
+    "project",
+    "location",
+    "country",
+    "developer_country",
+    "partners",
+    "deal",
+    "significance",
+    "reactor_capacity_mw",
+    "deployment_year",
+    "summary",
+    "source",
+    "scraped_at"
 ]
 
 def main():
