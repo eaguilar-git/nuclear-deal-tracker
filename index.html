@@ -197,13 +197,18 @@
 </div>
 
 <script>
-// ── CONFIG — paste your published CSV URL here ─────────────────────────────
-// File → Share → Publish to web → Announcements tab → CSV → copy URL
-const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1192838156&single=true&output=csv";
+// ── CONFIG ────────────────────────────────────────────────────────────────
+const SHEET_CSV_URL   = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1192838156&single=true&output=csv";
+const COMPANIES_URL   = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=0&single=true&output=csv";
+const REACTORS_URL    = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1429460762&single=true&output=csv";
+const PROJECTS_URL    = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1132713683&single=true&output=csv";
 // ──────────────────────────────────────────────────────────────────────────
 
 let allDeals = [];
 let filtered = [];
+let companiesMap = {};   // keyed by "Company Name"
+let reactorsMap  = {};   // keyed by "Reactor Name"
+let projectsMap  = {};   // keyed by "Project Name"
 
 // ── CSV parser ──────────────────────────────────────────────────────────────
 function parseCSV(text) {
@@ -326,26 +331,54 @@ function openModal(type, idx) {
 
   if (type === "company") {
     title = d.Company;
-    body = drow("Type", d["Type"]) + drow("Headquarters", d["Location"]) + drow("Partners", d["Partners"]);
+    const c = companiesMap[d.Company] || {};
+    body = drow("Type",          c["Type"]           || d["Type"] || "—") +
+           drow("Founded",       c["Year Founded"]   || "—") +
+           drow("Headquarters",  c["Headquarters"]   || d["Location"] || "—") +
+           drow("Capital Raised",c["Capital Raised"] || "—") +
+           drow("Website",       c["Website"]        || "—");
+    const desc = c["Description"] || "";
+    if (desc && !desc.toLowerCase().includes("auto-created")) {
+      body += `<p class="modal-desc">${desc}</p>`;
+    }
+
   } else if (type === "reactor") {
     title = d.Reactor;
-    body = drow("Category", d["Category"]) + drow("Reactor", d["Reactor"]) + drow("NRC Status", d["NRC Status"]);
+    const r = reactorsMap[d.Reactor] || {};
+    body = drow("Category",         r["Category"]          || "—") +
+           drow("Capacity",         r["Capacity"]          || "—") +
+           drow("Coolant",          r["Coolant"]           || "—") +
+           drow("Fuel",             r["Fuel"]              || "—") +
+           drow("Reactor Type",     r["Reactor Type"]      || "—") +
+           drow("Development Stage",r["Development Stage"] || "—") +
+           drow("Regulatory Status",r["Regulatory Status"] || d["NRC Status"] || "—");
+
   } else if (type === "project") {
     title = d.Project;
-    body = drow("Site", d["Location"]) + drow("Country", d["Country"]) + drow("Timeline", d["Timeline"]);
-    if (d.Summary) body += `<p class="modal-desc">${d.Summary}</p>`;
+    const pr = projectsMap[d.Project] || {};
+    body = drow("Site",         pr["Site"]          || d["Location"] || "—") +
+           drow("State",        pr["State"]         || "—") +
+           drow("Country",      d["Country"]        || "—") +
+           drow("Project Type", pr["Project Type"]  || "—") +
+           drow("Reactor",      pr["Reactor"]       || d["Reactor"] || "—") +
+           drow("Timeline",     d["Timeline"]       || "—");
+    const notes = pr["Notes"] || d["Summary"] || "";
+    if (notes && !notes.toLowerCase().includes("auto-created")) {
+      body += `<p class="modal-desc">${notes}</p>`;
+    }
+
   } else if (type === "deal") {
     title = d["Deal / Announcement"];
-    body = drow("Company", d.Company) +
-           drow("Reactor", d.Reactor) +
-           drow("Project", d.Project) +
-           drow("Partners", d.Partners) +
-           drow("Location", d.Location) +
-           drow("Country", d.Country) +
-           drow("Date", fmtDate(d.Date)) +
-           drow("Capital", d["Capital Sources"]) +
+    body = drow("Company",    d.Company) +
+           drow("Reactor",    d.Reactor) +
+           drow("Project",    d.Project) +
+           drow("Partners",   d.Partners) +
+           drow("Location",   d.Location) +
+           drow("Country",    d.Country) +
+           drow("Date",       fmtDate(d.Date)) +
+           drow("Capital",    d["Capital Sources"]) +
            drow("NRC Status", d["NRC Status"]) +
-           drow("Timeline", d.Timeline);
+           drow("Timeline",   d.Timeline);
     if (d.Summary) body += `<p class="modal-desc">${d.Summary}</p>`;
     if (d.Source && d.Source.startsWith("http")) {
       body += `<a href="${d.Source}" target="_blank" rel="noreferrer" class="modal-link">View source →</a>`;
@@ -370,31 +403,36 @@ document.getElementById("modal-close-btn").addEventListener("click", closeModal)
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
 // ── Load data ───────────────────────────────────────────────────────────────
+async function fetchCSV(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return parseCSV(await res.text());
+}
+
 async function loadData() {
   const body = document.getElementById("table-body");
-
-  if (SHEET_CSV_URL === "PASTE_YOUR_CSV_URL_HERE") {
-    body.innerHTML = `<div class="error-msg">
-      ⚠️ Open this file in a text editor and replace <strong>https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1192838156&single=true&output=csv</strong>
-      with your Google Sheet published CSV URL.<br><br>
-      File → Share → Publish to web → Announcements tab → CSV format → Publish → copy URL
-    </div>`;
-    document.getElementById("table-count").textContent = "No data source configured";
-    return;
-  }
-
   try {
-    const res = await fetch(SHEET_CSV_URL);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    allDeals = parseCSV(text);
+    // Fetch all 4 CSVs in parallel at startup
+    const [announcements, companies, reactors, projects] = await Promise.all([
+      fetchCSV(SHEET_CSV_URL),
+      fetchCSV(COMPANIES_URL),
+      fetchCSV(REACTORS_URL),
+      fetchCSV(PROJECTS_URL),
+    ]);
+
+    // Build lookup maps keyed by entity name
+    companies.forEach(r => { if (r["Company Name"]) companiesMap[r["Company Name"]] = r; });
+    reactors.forEach(r  => { if (r["Reactor Name"])  reactorsMap[r["Reactor Name"]]  = r; });
+    projects.forEach(r  => { if (r["Project Name"])  projectsMap[r["Project Name"]]  = r; });
+
+    allDeals = announcements;
     buildFilters();
     updateStats();
     render();
   } catch (err) {
     body.innerHTML = `<div class="error-msg">
       ❌ Could not load data: ${err.message}<br><br>
-      Make sure your Google Sheet is published to web as CSV and the URL is correct.
+      Make sure all Google Sheet tabs are published to web as CSV.
     </div>`;
     document.getElementById("table-count").textContent = "Error loading data";
   }
