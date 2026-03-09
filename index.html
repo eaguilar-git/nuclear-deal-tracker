@@ -250,30 +250,34 @@ function badge(sig) {
 }
 
 // ── Populate filters ────────────────────────────────────────────────────────
-function populate(id, key) {
+function populateSel(id, vals) {
   const sel = document.getElementById(id);
-  const vals = ["All", ...new Set(allDeals.map(d => d[key]).filter(Boolean).sort())];
-  sel.innerHTML = vals.map(v => `<option>${v}</option>`).join("");
-}
-
-function populateFromMap(id, map) {
-  const sel = document.getElementById(id);
-  const vals = ["All", ...Object.keys(map).filter(Boolean).sort()];
-  sel.innerHTML = vals.map(v => `<option>${v}</option>`).join("");
+  sel.innerHTML = ["All", ...vals].map(v => `<option>${v}</option>`).join("");
+  sel.addEventListener("change", render);
 }
 
 function buildFilters() {
-  // Company filter: only nuclear developers from the Companies tab
-  populateFromMap("f-company", companiesMap);
-  // Reactor & Project: from their respective tabs
-  populateFromMap("f-reactor", reactorsMap);
-  populateFromMap("f-project", projectsMap);
-  // Partners: all unique values from Announcements (tech cos, utilities, DOE, etc.)
-  populate("f-partner", "Partners");
-  populate("f-sig",     "Significance");
-  ["f-company","f-reactor","f-project","f-partner","f-sig"].forEach(id => {
-    document.getElementById(id).addEventListener("change", render);
+  // Company: nuclear developers from Companies tab
+  populateSel("f-company", Object.keys(companiesMap).filter(Boolean).sort());
+
+  // Reactor: from Reactors tab
+  populateSel("f-reactor", Object.keys(reactorsMap).filter(Boolean).sort());
+
+  // Project: from Projects tab
+  populateSel("f-project", Object.keys(projectsMap).filter(Boolean).sort());
+
+  // Partners: split semicolon-separated values into individual options
+  const partnerSet = new Set();
+  allDeals.forEach(d => {
+    if (d.Partners) d.Partners.split(";").forEach(p => {
+      const t = p.trim();
+      if (t && t !== "N/A" && t !== "TBD") partnerSet.add(t);
+    });
   });
+  populateSel("f-partner", [...partnerSet].sort());
+
+  // Significance
+  populateSel("f-sig", [...new Set(allDeals.map(d => d.Significance).filter(Boolean))].sort());
 }
 
 // ── Stats ───────────────────────────────────────────────────────────────────
@@ -297,7 +301,7 @@ function render() {
       (fc  === "All" || d.Company      === fc)  &&
       (fr  === "All" || d.Reactor      === fr)  &&
       (fp  === "All" || d.Project      === fp)  &&
-      (fpa === "All" || d.Partners     === fpa) &&
+      (fpa === "All" || (d.Partners && d.Partners.split(";").map(p => p.trim()).includes(fpa))) &&
       (fs  === "All" || d.Significance === fs)
     )
     .sort((a, b) => new Date(b.Date || 0) - new Date(a.Date || 0));
