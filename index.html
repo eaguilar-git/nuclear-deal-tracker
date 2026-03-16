@@ -58,14 +58,15 @@ nav {
 /* ── HERO ── */
 .hero {
   background: linear-gradient(135deg, #05152e 0%, #0a2a5a 55%, #0d3878 100%);
-  padding: 52px 48px 44px; position: relative; overflow: hidden;
+  padding: 52px 48px 44px; position: relative; overflow: visible;
 }
 .hero-watermark {
   position: absolute; right: -40px; top: -20px;
   font-family: 'Playfair Display', serif; font-size: 200px; font-weight: 800;
   color: rgba(255,255,255,0.03); line-height: 1; user-select: none; pointer-events: none; white-space: nowrap;
+  overflow: hidden; max-width: 100%; clip-path: inset(0);
 }
-.hero-inner { max-width: 1280px; margin: 0 auto; }
+.hero-inner { max-width: 1280px; margin: 0 auto; position: relative; z-index: 1; }
 .hero-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--sky); font-weight: 700; margin-bottom: 10px; }
 .hero h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 42px; font-weight: 700; color: #fff; line-height: 1.15; margin-bottom: 12px; }
 .hero-sub { font-size: 15px; color: #a8c4e0; line-height: 1.7; max-width: 520px; margin-bottom: 32px; }
@@ -187,7 +188,7 @@ nav {
   padding: 12px 14px; border-radius: 8px; width: 260px; max-width: calc(100vw - 80px);
   box-shadow: 0 8px 24px rgba(0,0,0,0.4); pointer-events: none;
   opacity: 0; transform: translateY(-4px); transition: opacity 0.15s, transform 0.15s;
-  font-family: 'Source Sans 3', sans-serif; font-weight: 400;
+  font-family: 'Source Sans 3', sans-serif; font-weight: 400; z-index: 500;
 }
 .tip-box::before { content: ''; position: absolute; bottom: 100%; left: 16px; border: 6px solid transparent; border-bottom-color: #0a1828; }
 .tip-wrap:hover .tip-box { opacity: 1; transform: translateY(0); }
@@ -438,14 +439,13 @@ nav {
       <div class="table-toolbar">
         <span class="table-count" id="table-count">Loading…</span>
       </div>
-      <div class="col-heads" style="--tgrid: 90px 110px 1fr 1.8fr 110px 110px 80px 36px">
+      <div class="col-heads" style="--tgrid: 90px 110px 1fr 1.8fr 140px 130px 36px">
         <div class="col-head sorted" data-col="date" onclick="sortBy('date')">Date <span class="sort-arrow">↓</span></div>
         <div class="col-head" data-col="type" onclick="sortBy('type')">Type <span class="sort-arrow">↕</span></div>
         <div class="col-head" data-col="sig" onclick="sortBy('sig')">Significance <span class="sort-arrow">↕</span></div>
         <div class="col-head" data-col="summary" onclick="sortBy('summary')">Summary <span class="sort-arrow">↕</span></div>
         <div class="col-head" data-col="entity" onclick="sortBy('entity')">Lead <span class="sort-arrow">↕</span></div>
         <div class="col-head" data-col="capital" onclick="sortBy('capital')">Capital <span class="sort-arrow">↕</span></div>
-        <div class="col-head" data-col="impact" onclick="sortBy('impact')">Impact <span class="sort-arrow">↕</span></div>
         <div class="col-head"></div>
       </div>
       <div id="table-body">
@@ -913,7 +913,7 @@ function renderFeed() {
     return;
   }
 
-  const grid = '90px 110px 1fr 1.8fr 110px 110px 80px 36px';
+  const grid = '90px 110px 1fr 1.8fr 140px 130px 36px';
   body.innerHTML = filtered.map((a, i) => {
     const rawCap = (a['Capital Value (low)'] || '').replace(/,/g, '');
     const capNum = parseFloat(rawCap);
@@ -924,7 +924,6 @@ function renderFeed() {
     const summaryHtml = fSearch ? highlight(summary, fSearch) : summary;
     const linkedName = a._linkedName ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">${a._linkedName}</div>` : '';
     const intlFlag = !a._isUS ? `<span class="intl-flag">INTL</span>` : '';
-    const reviewFlag = a['Needs Review'] === 'Yes' ? reviewBadge() : '';
     return `<div class="trow" style="--tgrid:${grid}">
       <span class="cell-date">${fmtDateShort(a['Announcement Date'])}</span>
       <span class="cell" style="font-size:12px">${a['Deal Type']||'—'}</span>
@@ -938,7 +937,6 @@ function renderFeed() {
         <div style="font-size:11px;color:var(--muted)">${a._entityType||''}</div>
       </div>
       <span class="cell" style="font-size:12px">${capStr}</span>
-      <span class="cell">${impactBadge(a['Impact'])}</span>
       <span class="cell">${a['Source URL'] ? `<a href="${a['Source URL']}" target="_blank" rel="noreferrer" class="cell-link" title="Source">↗</a>` : ''}</span>
     </div>`;
   }).join('');
@@ -983,31 +981,28 @@ function openDealModal(idx) {
   document.getElementById('modal-tag').textContent = a['Deal Type'] || 'Announcement';
   document.getElementById('modal-title').textContent = a['Deal Summary'] || 'Deal Detail';
   let body = '';
-  body += drow('Deal ID',     a['Deal ID']);
   body += drow('Date',        fmtDate(a['Announcement Date']));
   body += drow('Significance',a['Significance']);
   body += drow('Impact',      a['Impact']);
   body += drow('Partners',    a['Partners']);
   if (a._project) {
-    body += drow('Project',   a._project['Project Name']);
+    const projId = a['Project ID'];
+    body += `<div class="drow"><span class="drow-label">Project</span><span class="drow-val"><button class="lbtn" style="font-size:14px" onclick="closeModal();switchTab('explorer');setMode('project');selectEntity('${projId}')">${a._project['Project Name']} →</button></span></div>`;
     body += drow('Site',      a._project['Site Name']);
     body += drow('State',     a._project['State']);
     body += drow('Technology',a._project['Reactor Technology']);
   }
-  if (a._program && !a._project) {
-    body += drow('Program',   a._program['Program Name']);
-    body += drow('Lead Entity',a._program['Lead Entity']);
+  if (a._program) {
+    const progId = a['Program ID'];
+    body += `<div class="drow"><span class="drow-label">Program</span><span class="drow-val"><button class="lbtn" style="font-size:14px" onclick="closeModal();switchTab('explorer');setMode('program');selectEntity('${progId}')">${a._program['Program Name']} →</button></span></div>`;
   }
   if (a['Capital Value (low)']) {
-    const capType = a['Value Type'] ? `(${a['Value Type']})` : '';
-    body += drow('Capital', `${parseFloat(a['Capital Value (low)']).toLocaleString()} ${a['Capital Unit']||''} ${capType}`.trim());
-  }
-  if (a['USD Val low (calc.)']) {
-    body += drow('USD equiv.', `$${parseFloat(a['USD Val low (calc.)']).toLocaleString()}M`);
+    const rawC = (a['Capital Value (low)']).replace(/,/g,'');
+    const capType = a['Value Type'] ? ` (${a['Value Type']})` : '';
+    body += drow('Capital', `${parseFloat(rawC).toLocaleString()} ${a['Capital Unit']||''}${capType}`.trim());
   }
   body += drow('Capital Source', a['Capital Source']);
-  body += drow('Confidence',  a['Confidence']);
-  body += drow('Needs Review',a['Needs Review']);
+  body += drow('Needs Review',   a['Needs Review'] === 'Yes' ? '⚠ Yes — flagged for review' : null);
   document.getElementById('modal-body').innerHTML = body;
   if (a['Source URL']) {
     document.getElementById('modal-body').innerHTML += `<a href="${a['Source URL']}" target="_blank" rel="noreferrer" class="modal-link">View source article →</a>`;
