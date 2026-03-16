@@ -1,11 +1,26 @@
 """
-nuclear_scraper.py  —  Relational version
-==========================================
-- Extracts deals from RSS feeds using Claude (Anthropic)
-- Looks up existing Companies / Reactors / Projects by name
-- Creates new rows in those tables if not found
-- Appends Announcements with full relational IDs
-- Flags unresolved items in a 'Review' tab
+nuclear_scraper.py  —  v2 (relational schema)
+===============================================
+Scrapes nuclear industry RSS feeds, extracts structured deal data using
+Claude, and writes to the new 4-tab Google Sheet schema:
+  Programs → Projects → Reactors → Announcements
+
+Architecture
+------------
+1. Load reference data  — read Programs + Projects from Sheet at startup
+2. Scrape feeds         — fetch RSS entries, filter by deal keywords
+3. Fetch article text   — pull full body (~8k chars) for each candidate
+4. Two-pass extraction  — Pass 1: include/exclude decision
+                          Pass 2: structured field extraction (if included)
+5. Deduplicate          — fingerprint against existing Announcements rows
+6. Write output         — append to Announcements; flag low-confidence rows
+
+Environment variables required
+-------------------------------
+  ANTHROPIC_API_KEY
+  GOOGLE_SHEET_ID          (new sheet: 1K_Be4gnuxUrWaTR_L_2FKwHH9l6q9UYgtfkFBDLznBA)
+  GOOGLE_SERVICE_ACCOUNT_JSON  (service account JSON as a string)
+  ANTHROPIC_MODEL          (optional, defaults to claude-haiku-4-5-20251001)
 """
 
 import os
@@ -14,7 +29,6 @@ import json
 import time
 import hashlib
 import datetime
-from email.utils import parsedate_to_datetime
 
 import feedparser
 import requests
@@ -24,112 +38,245 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-# ─── FEEDS ────────────────────────────────────────────────────────────────────
+# ─── CONFIG ───────────────────────────────────────────────────────────────────
+
+MODEL           = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+ESCALATION_MODEL = "claude-sonnet-4-6"   # used when confidence is low
+BODY_CHAR_LIMIT = 9000                   # article body text cap
+MIN_YEAR        = 2024                   # drop deals announced before this
+
+# Tab names (must match Google Sheet exactly)
+TAB_PROGRAMS      = "Programs"
+TAB_PROJECTS      = "Projects"
+TAB_REACTORS      = "Reactors"
+TAB_ANNOUNCEMENTS = "Announcements"
+TAB_SEEN          = "Seen"        # dedup hash log
+TAB_REVIEW        = "Review"      # low-confidence / needs-human-review
+
+# Announcements column order (must match sheet col order exactly)
+ANNOUNCEMENT_COLS = [
+    "Deal ID",
+    "Reactor ID",
+    "Project ID",
+    "Program ID",
+    "Deal Type",
+    "Significance",
+    "Impact",
+    "Announcement Date",
+    "Partners",
+    "Deal Summary",
+    "Capital Value (low)",
+    "Capital Value (high)",
+    "Capital Unit",
+    "Value Type",
+    "Capital Source",
+    "USD Val low (calc.)",
+    "USD Val high (calc.)",
+    "Source URL",
+    "Confidence",
+    "Needs Review",
+]
+
+REVIEW_COLS = [
+    "Review ID",
+    "Scraped At",
+    "Article Title",
+    "Article URL",
+    "Reason",
+    "Raw Extraction",
+]
+
+SEEN_COLS = ["hash", "title", "url", "scraped_at"]
+
+# ─── RSS FEEDS ────────────────────────────────────────────────────────────────
+# Three tiers:
+#   1. Industry trade press       — primary deal coverage
+#   2. Government / regulatory    — NRC, DOE, IAEA official announcements
+#   3. Company newsrooms          — press releases from companies in our tracker
 
 FEEDS = [
-    {"name": "World Nuclear News",       "url": "https://www.world-nuclear-news.org/rss"},
-    {"name": "NEI",                      "url": "https://www.nei.org/rss/news"},
-    {"name": "DOE Nuclear Energy",       "url": "https://www.energy.gov/ne/rss.xml"},
-    {"name": "ANS Nuclear Newswire",     "url": "https://www.ans.org/news/feed/"},
-    {"name": "Nuclear Engineering Intl", "url": "https://www.neimagazine.com/rss"},
-    {"name": "Nucnet",                   "url": "https://www.nucnet.org/news/rss"},
-    {"name": "Power Magazine Nuclear",   "url": "https://www.powermag.com/category/nuclear/feed/"},
-    {"name": "TerraPower",               "url": "https://www.terrapower.com/feed/"},
-    {"name": "X-energy",                 "url": "https://x-energy.com/news/feed/"},
-    {"name": "NuScale",                  "url": "https://www.nuscalepower.com/news/feed/"},
+
+    # ── Tier 1: Industry trade press ─────────────────────────────────────────
+    {"name": "World Nuclear News",      "url": "https://www.world-nuclear-news.org/rss"},
+    {"name": "ANS Nuclear Newswire",    "url": "https://www.ans.org/rss/news/"},
+    {"name": "NEI News",                "url": "https://www.nei.org/rss/news"},
+    {"name": "Power Magazine – Nuclear","url": "https://www.powermag.com/category/nuclear/feed/"},
+    {"name": "Power Engineering",       "url": "https://www.power-eng.com/feed/"},
+    {"name": "Utility Dive",            "url": "https://www.utilitydive.com/feeds/news/"},
+    {"name": "Neutron Bytes",           "url": "https://neutronbytes.com/feed/"},
+    {"name": "Nuclear Engineering Intl","url": "https://www.neimagazine.com/rss"},
+    {"name": "S&P Global Energy",       "url": "https://www.spglobal.com/commodityinsights/en/rss-feed/energy"},
+    {"name": "Reuters Business News",   "url": "https://feeds.reuters.com/reuters/businessNews"},
+    {"name": "Bloomberg Energy",        "url": "https://feeds.bloomberg.com/energy/news.rss"},
+    {"name": "E&E News Energy",         "url": "https://www.eenews.net/rss/energywire.rss"},
+    {"name": "Canary Media",            "url": "https://www.canarymedia.com/rss"},
+    {"name": "Latitude Media",          "url": "https://www.latitudemedia.com/feed"},
+
+    # ── Tier 2: Government & regulatory ──────────────────────────────────────
+    {"name": "DOE Nuclear Energy",      "url": "https://www.energy.gov/ne/rss.xml"},
+    {"name": "DOE Office of Loan Programs","url": "https://www.energy.gov/lpo/rss.xml"},
+    {"name": "NRC News",                "url": "https://www.nrc.gov/public-involve/rss-feeds/nrc-news.xml"},
+    {"name": "NRC Press Releases",      "url": "https://www.nrc.gov/public-involve/rss-feeds/press-releases.xml"},
+    {"name": "IAEA News",               "url": "https://www.iaea.org/feeds/topical/nuclear-power.xml"},
+    {"name": "White House Energy",      "url": "https://www.whitehouse.gov/feed/"},
+
+    # ── Tier 3: Company newsrooms (key players in our tracker) ───────────────
+    # Developers / vendors
+    {"name": "TerraPower News",         "url": "https://www.terrapower.com/feed/"},
+    {"name": "Holtec News",             "url": "https://holtecinternational.com/feed/"},
+    {"name": "Oklo News",               "url": "https://oklo.com/news-and-events/rss.xml"},
+    {"name": "X-energy News",           "url": "https://x-energy.com/feed/"},
+    {"name": "Kairos Power News",       "url": "https://kairospower.com/feed/"},
+    {"name": "GE Vernova News",         "url": "https://www.gevernova.com/rss"},
+    {"name": "Westinghouse News",       "url": "https://www.westinghousenuclear.com/rss"},
+    {"name": "Commonwealth Fusion",     "url": "https://cfs.energy/feed/"},
+    {"name": "Helion Energy",           "url": "https://www.helionenergy.com/feed/"},
+    {"name": "NuScale Power",           "url": "https://www.nuscalepower.com/rss"},
+    {"name": "NANO Nuclear",            "url": "https://ir.nanonuclearenergy.com/rss/news-releases.xml"},
+    # Utilities
+    {"name": "TVA Newsroom",            "url": "https://www.tva.com/rss/newsroom"},
+    {"name": "Constellation Energy",    "url": "https://www.constellationenergy.com/rss/newsroom.xml"},
+    {"name": "Dominion Energy News",    "url": "https://www.dominionenergy.com/rss/news"},
+    {"name": "Duke Energy News",        "url": "https://news.duke-energy.com/rss/all.rss"},
+    {"name": "NextEra Energy News",     "url": "https://www.nexteraenergy.com/rss"},
+    {"name": "Exelon / Constellation",  "url": "https://www.exeloncorp.com/rss/news.xml"},
+    {"name": "Southern Nuclear",        "url": "https://www.southerncompany.com/rss/news.xml"},
+    {"name": "Xcel Energy News",        "url": "https://www.xcelenergy.com/rss/news"},
+    # Tech / hyperscalers (press release feeds)
+    {"name": "Amazon Sustainability",   "url": "https://www.aboutamazon.com/rss/news"},
+    {"name": "Google Blog",             "url": "https://blog.google/rss/"},
+    {"name": "Microsoft On the Issues", "url": "https://blogs.microsoft.com/on-the-issues/feed/"},
+    {"name": "Meta Newsroom",           "url": "https://about.fb.com/rss/"},
+    # Finance / investment
+    {"name": "Brookfield News",         "url": "https://bep.brookfield.com/rss/news-releases.xml"},
 ]
 
-SIGNAL_KEYWORDS = [
-    "agreement", "contract", "partnership", "deal", "mou", "memorandum",
-    "deployment", "deploy", "reactor order", "reactor sale",
-    "construction", "construction permit", "construction start",
-    "license", "licensing", "approval", "permit",
-    "funding", "investment", "grant", "award", "selected", "signed",
-    "financial close", "epc", "supply agreement", "purchase",
-    "ppa", "power purchase", "offtake", "energy supply",
-    "smr", "advanced reactor", "microreactor",
-    "natrium", "xe-100", "bwrx", "bwrx-300", "aurora", "evinci",
-    "kairos", "voygr", "last energy", "newcleo",
-    "terrapower", "x-energy", "oklo", "ge hitachi", "westinghouse",
-    "data center", "ai power", "industrial heat",
-]
-
-# ─── SHEET TABS ───────────────────────────────────────────────────────────────
-
-TAB_COMPANIES     = "Companies"
-TAB_REACTORS      = "Reactors"
-TAB_PROJECTS      = "Projects"
-TAB_ANNOUNCEMENTS = "Announcements"
-TAB_SEEN          = "Seen"
-TAB_REVIEW        = "Review"
-
-# Column headers for each tab (must match the relational Excel exactly)
-COMPANY_COLS = [
-    "company_id", "Company Name", "Type", "Year Founded",
-    "Headquarters", "Capital Raised", "Description", "Website",
-]
-REACTOR_COLS = [
-    "reactor_id", "Reactor Name", "Company (Developer)", "Category",
-    "Capacity", "Coolant", "Fuel", "Reactor Type",
-    "Development Stage", "Regulatory Status",
-]
-PROJECT_COLS = [
-    "project_id", "Project Name", "Company (Developer)", "Reactor",
-    "Site", "State", "Project Type", "Notes",
-]
-ANNOUNCEMENT_COLS = [
-    "ann_id", "Date", "Company", "Reactor", "Project",
-    "Deal / Announcement", "Partners", "Location", "Country",
-    "Significance", "Type", "Capital Sources", "NRC Status",
-    "Timeline", "Summary", "Source", "scraped_at",
-]
-REVIEW_COLS = [
-    "review_id", "scraped_at", "article_title", "article_url",
-    "raw_company", "raw_reactor", "raw_project",
-    "issue", "raw_json",
+# Keywords that flag an article as a potential deal
+DEAL_KEYWORDS = [
+    "agreement", "deal", "contract", "ppa", "power purchase",
+    "mou", "memorandum", "partnership", "collaboration",
+    "investment", "funding", "loan", "grant", "award",
+    "financing", "license renewal", "license extension",
+    "restart", "new build", "construction permit",
+    "offtake", "signed", "announced", "selected",
+    "smr", "small modular", "advanced reactor",
 ]
 
 
-# ─── HELPERS ──────────────────────────────────────────────────────────────────
+# ─── PROMPTS ──────────────────────────────────────────────────────────────────
 
-def clean(text):
-    return " ".join(str(text).split()).strip() if text else ""
+PASS1_SYSTEM = """You are a nuclear industry analyst. Your job is to read a news article
+and decide whether it describes a concrete nuclear energy deal, agreement, financing event,
+license action, or deployment milestone that should be tracked in a deal database.
 
-def entry_hash(title, link):
-    return hashlib.md5(f"{title}|{link}".encode()).hexdigest()
+Respond with JSON only. No prose, no markdown fences."""
 
-def is_relevant(title, summary):
-    text = (title + " " + summary).lower()
-    return any(k in text for k in SIGNAL_KEYWORDS)
+PASS1_USER_TMPL = """Article title: {title}
+Article text:
+{body}
 
-def normalize(s):
-    """Lowercase, strip punctuation for fuzzy matching."""
-    return re.sub(r"[^a-z0-9 ]", "", str(s).lower().strip())
+Does this article describe a trackable nuclear deal or milestone?
+A trackable item is one of:
+- A signed or announced agreement (PPA, MOU, JDA, EPC, collaboration)
+- A financing event (equity, debt, grant, DOE award)
+- A license action (renewal, restart approval, construction permit filed/approved)
+- A deployment milestone (COL filing, site permit, construction start)
+- A significant offtake or supply commitment
 
-def best_match(query, candidates):
-    """
-    Try to find a match for `query` in a list of (id, name) tuples.
-    Returns the matching id, or None.
-    Strategy: exact → normalized exact → substring
-    """
-    if not query or not candidates:
-        return None
-    q = clean(query)
-    qn = normalize(q)
-    # 1. exact match
-    for cid, name in candidates:
-        if clean(name) == q:
-            return cid
-    # 2. normalized exact
-    for cid, name in candidates:
-        if normalize(name) == qn:
-            return cid
-    # 3. substring (query contained in name, or name in query)
-    for cid, name in candidates:
-        nn = normalize(name)
-        if qn and (qn in nn or nn in qn) and len(qn) >= 4:
-            return cid
-    return None
+NOT trackable:
+- Opinion pieces, analysis, retrospectives
+- Policy speculation without a concrete action
+- Earnings reports with no specific deal
+- International news with no US nexus (unless a major framework)
+- Articles that only mention existing/prior deals with no new development
+
+Respond with exactly this JSON:
+{{"include": true/false, "reason": "one sentence"}}"""
+
+
+PASS2_SYSTEM = """You are a nuclear industry deal analyst. Extract structured data from
+nuclear energy news articles. Return only valid JSON, no prose, no markdown fences.
+
+SIGNIFICANCE CATEGORIES (pick the highest applicable):
+- "Deployment"        → concrete construction, licensing, restart activity
+- "Financing"         → capital commitment with a specific dollar amount
+- "Offtake"           → binding/near-binding PPA or supply agreement
+- "Market development"→ preorders, site options, feasibility studies with capital at risk
+- "Signaling"         → non-binding MOUs, collaborations, intent without committed capital
+- "Policy / Regulatory" → government action, legislation, NRC decisions
+
+IMPACT LEVELS:
+- "High"   → >$500M or >500 MW or landmark first-of-kind
+- "Medium" → $50M–$500M or 50–500 MW or notable but not landmark
+- "Low"    → <$50M or <50 MW or early-stage/feasibility
+
+DEAL TYPES:
+PPA, MOU, JDA, EPC, Financing, Grant, License, COLA Filing, ARDP Award,
+Collaboration, Preorder, DoD Contract, State Legislation / Grant,
+NRC License Renewal, NRC SLR Approval, SLR Application,
+Early Site Permit Application, Strategic Partnership, Announcement,
+Master Power Agreement, Funding Agreement, Other
+
+CAPITAL UNIT OPTIONS: USD millions, USD billions, USD thousands,
+EUR millions, EUR billions, GBP millions, GBP billions, JPY billions,
+CAD millions, CAD billions
+
+VALUE TYPE OPTIONS: Exact, Up to, At least, Range
+
+CAPITAL SOURCE OPTIONS: Equity, Debt, Grant, PPA, Mixed, Undisclosed
+
+CONFIDENCE: High / Medium / Low
+- High   → all key fields clearly stated in article
+- Medium → some fields inferred or partially stated
+- Low    → significant gaps or ambiguity
+
+ATTACHMENT RULE:
+- Set project_id if the deal can be tied to a specific project in the reference list
+- Set program_id only if it is clearly a program-level deal with no specific project
+- Set reactor_id only if a specific reactor unit is named
+- Default to project_id whenever possible"""
+
+
+PASS2_USER_TMPL = """Article title: {title}
+Article URL: {url}
+Article date: {date}
+
+Article text:
+{body}
+
+Known programs (match by name similarity):
+{programs}
+
+Known projects (match by name similarity):
+{projects}
+
+Known reactors (match by name similarity):
+{reactors}
+
+Existing announcements fingerprints (to avoid duplicates):
+{fingerprints}
+
+Extract the deal and return this JSON (use null for unknown fields):
+{{
+  "deal_type":         "string from allowed list",
+  "significance":      "string from allowed list",
+  "impact":            "High|Medium|Low",
+  "announcement_date": "YYYY-MM-DD or YYYY-MM or YYYY",
+  "partners":          "comma-separated counterparties (not the lead)",
+  "deal_summary":      "1-2 sentence description of what was agreed",
+  "capital_value_low": number or null,
+  "capital_value_high": number or null,
+  "capital_unit":      "string from allowed list or null",
+  "value_type":        "Exact|Up to|At least|Range or null",
+  "capital_source":    "string from allowed list",
+  "project_id":        "PROJ-XXX if matched, else null",
+  "program_id":        "PROG-XXX if matched and no project match, else null",
+  "reactor_id":        "REAC-XXX if a specific unit named, else null",
+  "confidence":        "High|Medium|Low",
+  "needs_review":      true/false,
+  "is_duplicate":      true/false,
+  "duplicate_reason":  "string or null"
+}}"""
 
 
 # ─── GOOGLE SHEETS ────────────────────────────────────────────────────────────
@@ -142,429 +289,486 @@ def get_gsheet_client():
     return gspread.authorize(creds)
 
 
-def ensure_tabs(spreadsheet):
-    existing = [ws.title for ws in spreadsheet.worksheets()]
-    defaults = {
-        TAB_COMPANIES:     COMPANY_COLS,
-        TAB_REACTORS:      REACTOR_COLS,
-        TAB_PROJECTS:      PROJECT_COLS,
-        TAB_ANNOUNCEMENTS: ANNOUNCEMENT_COLS,
-        TAB_SEEN:          ["hash", "title", "source"],
-        TAB_REVIEW:        REVIEW_COLS,
-    }
-    for name, headers in defaults.items():
-        if name not in existing:
-            ws = spreadsheet.add_worksheet(title=name, rows=2000, cols=len(headers) + 2)
-            ws.append_row(headers)
-            print(f"  Created tab: {name}")
-
-
 def load_tab(spreadsheet, tab_name):
-    """Return list of dicts (one per row, using header row as keys)."""
+    """Return list of dicts keyed by header row."""
     ws = spreadsheet.worksheet(tab_name)
-    time.sleep(1)  # avoid read quota bursts
+    time.sleep(0.5)
     return ws.get_all_records()
 
 
-def load_lookup(spreadsheet, tab_name, id_col, name_col):
-    """Return list of (id, name) tuples for matching."""
-    records = load_tab(spreadsheet, tab_name)
-    return [(r[id_col], r[name_col]) for r in records if r.get(id_col) and r.get(name_col)]
+def ensure_tab(spreadsheet, tab_name, headers):
+    """Create tab with headers if it doesn't exist."""
+    existing = [ws.title for ws in spreadsheet.worksheets()]
+    if tab_name not in existing:
+        ws = spreadsheet.add_worksheet(title=tab_name, rows=2000, cols=len(headers) + 2)
+        ws.append_row(headers)
+        print(f"  Created tab: {tab_name}")
+    return spreadsheet.worksheet(tab_name)
 
 
-# ── In-memory ID counters (loaded once at startup, incremented locally) ────────
-_id_counters = {}
-
-def init_id_counter(spreadsheet, tab_name, id_col):
-    """Load the current max ID from the sheet once and cache it."""
-    records = load_tab(spreadsheet, tab_name)
-    ids = [int(r[id_col]) for r in records if str(r.get(id_col, "")).lstrip('-').isdigit()]
-    _id_counters[tab_name] = max(ids, default=0)
-
-def next_id(spreadsheet, tab_name, id_col):
-    """Return next ID using in-memory counter — no extra API call."""
-    if tab_name not in _id_counters:
-        init_id_counter(spreadsheet, tab_name, id_col)
-    _id_counters[tab_name] += 1
-    return _id_counters[tab_name]
+def append_rows_batch(spreadsheet, tab_name, rows):
+    """Append a list of row-dicts to a tab in one batch."""
+    if not rows:
+        return
+    ws = spreadsheet.worksheet(tab_name)
+    # Get headers to order values correctly
+    headers = ws.row_values(1)
+    values = [[str(row.get(h, "") or "") for h in headers] for row in rows]
+    ws.append_rows(values, value_input_option="RAW")
+    time.sleep(1)
 
 
-# ── Cached worksheet handles ───────────────────────────────────────────────────
-_ws_cache = {}
+def next_id(spreadsheet, tab_name, id_prefix, id_col=0):
+    """Return next sequential ID string like DEAL-042."""
+    ws = spreadsheet.worksheet(tab_name)
+    all_vals = ws.col_values(id_col + 1)[1:]  # skip header
+    existing = [v for v in all_vals if v.startswith(id_prefix + "-")]
+    if not existing:
+        return f"{id_prefix}-001"
+    nums = []
+    for v in existing:
+        try:
+            nums.append(int(v.split("-")[1]))
+        except Exception:
+            pass
+    return f"{id_prefix}-{(max(nums) + 1):03d}" if nums else f"{id_prefix}-001"
 
-def get_ws(spreadsheet, tab_name):
-    """Return cached worksheet object to avoid repeated metadata fetches."""
-    if tab_name not in _ws_cache:
-        _ws_cache[tab_name] = spreadsheet.worksheet(tab_name)
-        time.sleep(0.5)
-    return _ws_cache[tab_name]
 
+# ─── REFERENCE DATA LOADER ────────────────────────────────────────────────────
 
-def append_row(spreadsheet, tab_name, cols, values_dict):
-    """Append a row to a tab, ordered by cols list."""
-    row = [values_dict.get(c, "") for c in cols]
-    get_ws(spreadsheet, tab_name).append_row(row)
-    time.sleep(0.5)  # avoid write quota bursts
+def load_reference_data(spreadsheet):
+    """
+    Load Programs, Projects, Reactors, and existing Announcement fingerprints.
+    Returns dicts and lists used for matching and deduplication.
+    """
+    print("  Loading Programs...")
+    programs = load_tab(spreadsheet, TAB_PROGRAMS)
+    program_lookup = [(r["Program ID"], r["Program Name"]) for r in programs if r.get("Program ID")]
+
+    print("  Loading Projects...")
+    projects = load_tab(spreadsheet, TAB_PROJECTS)
+    project_lookup = [(r["Project ID"], r["Project Name"], r.get("Primary Lead","")) for r in projects if r.get("Project ID")]
+
+    print("  Loading Reactors...")
+    reactors = load_tab(spreadsheet, TAB_REACTORS)
+    reactor_lookup = [(r["Reactor ID"], r["Unit Name / Number"], r.get("Project ID (opt.)","")) for r in reactors if r.get("Reactor ID")]
+
+    print("  Loading existing Announcements for deduplication...")
+    try:
+        announcements = load_tab(spreadsheet, TAB_ANNOUNCEMENTS)
+        # Fingerprint = project_id + deal_type + summary (first 80 chars)
+        fingerprints = [
+            f"{r.get('Project ID','')}/{r.get('Program ID','')}/{r.get('Deal Type','')}/{str(r.get('Deal Summary',''))[:80]}"
+            for r in announcements
+        ]
+    except Exception:
+        fingerprints = []
+
+    return {
+        "program_lookup":  program_lookup,
+        "project_lookup":  project_lookup,
+        "reactor_lookup":  reactor_lookup,
+        "fingerprints":    fingerprints,
+    }
 
 
 def load_seen_hashes(spreadsheet):
-    records = load_tab(spreadsheet, TAB_SEEN)
-    return {r["hash"] for r in records if r.get("hash")}
+    """Return set of already-processed article hashes."""
+    try:
+        ws = spreadsheet.worksheet(TAB_SEEN)
+        return set(ws.col_values(1)[1:])
+    except Exception:
+        return set()
 
 
-def save_seen(spreadsheet, rows):
-    if rows:
-        get_ws(spreadsheet, TAB_SEEN).append_rows(rows)
-        time.sleep(0.5)
+# ─── UTILITIES ────────────────────────────────────────────────────────────────
+
+def clean(s):
+    return re.sub(r"\s+", " ", str(s or "")).strip()
 
 
-# ─── UPSERT LOGIC ─────────────────────────────────────────────────────────────
-
-def upsert_company(spreadsheet, company_name, company_lookup):
-    """Find or create company. Returns company_id."""
-    if not company_name:
-        return None
-    cid = best_match(company_name, company_lookup)
-    if cid:
-        return cid
-    # Create new company row
-    new_id = next_id(spreadsheet, TAB_COMPANIES, "company_id")
-    append_row(spreadsheet, TAB_COMPANIES, COMPANY_COLS, {
-        "company_id":     new_id,
-        "Company Name":   clean(company_name),
-        "Type":           "Unknown",
-        "Year Founded":   "",
-        "Headquarters":   "",
-        "Capital Raised": "",
-        "Description":    "Auto-created by scraper — please review and enrich.",
-        "Website":        "",
-    })
-    company_lookup.append((new_id, company_name))
-    print(f"    ✚ New company created: {company_name} (id={new_id})")
-    return new_id
+def entry_hash(title, url):
+    return hashlib.md5(f"{title}{url}".encode()).hexdigest()
 
 
-def upsert_reactor(spreadsheet, reactor_name, company_name, reactor_lookup):
-    """Find or create reactor. Returns reactor_id."""
-    if not reactor_name or reactor_name.lower() in ("unknown", "tbd", "n/a", ""):
-        return None
-    rid = best_match(reactor_name, reactor_lookup)
-    if rid:
-        return rid
-    new_id = next_id(spreadsheet, TAB_REACTORS, "reactor_id")
-    append_row(spreadsheet, TAB_REACTORS, REACTOR_COLS, {
-        "reactor_id":        new_id,
-        "Reactor Name":      clean(reactor_name),
-        "Company (Developer)": clean(company_name) if company_name else "",
-        "Category":          "Unknown",
-        "Capacity":          "",
-        "Coolant":           "",
-        "Fuel":              "",
-        "Reactor Type":      "",
-        "Development Stage": "",
-        "Regulatory Status": "Auto-created by scraper — please review and enrich.",
-    })
-    reactor_lookup.append((new_id, reactor_name))
-    print(f"    ✚ New reactor created: {reactor_name} (id={new_id})")
-    return new_id
+def is_deal_candidate(title, summary):
+    text = (title + " " + summary).lower()
+    return any(kw in text for kw in DEAL_KEYWORDS)
 
 
-def upsert_project(spreadsheet, project_name, company_name, reactor_name, project_lookup):
-    """Find or create project. Returns project_id."""
-    if not project_name or project_name.lower() in ("unknown", "tbd", "program-level", ""):
-        return None
-    pid = best_match(project_name, project_lookup)
-    if pid:
-        return pid
-    new_id = next_id(spreadsheet, TAB_PROJECTS, "project_id")
-    append_row(spreadsheet, TAB_PROJECTS, PROJECT_COLS, {
-        "project_id":          new_id,
-        "Project Name":        clean(project_name),
-        "Company (Developer)": clean(company_name) if company_name else "",
-        "Reactor":             clean(reactor_name) if reactor_name else "",
-        "Site":                "",
-        "State":               "",
-        "Project Type":        "",
-        "Notes":               "Auto-created by scraper — please review and enrich.",
-    })
-    project_lookup.append((new_id, project_name))
-    print(f"    ✚ New project created: {project_name} (id={new_id})")
-    return new_id
+def format_reference_list(items, max_items=60):
+    """Format a lookup list as a compact string for the prompt."""
+    lines = []
+    for item in items[:max_items]:
+        if len(item) == 2:
+            lines.append(f"  {item[0]}: {item[1]}")
+        elif len(item) == 3:
+            lines.append(f"  {item[0]}: {item[1]} (lead: {item[2]})")
+    if len(items) > max_items:
+        lines.append(f"  ... and {len(items) - max_items} more")
+    return "\n".join(lines) if lines else "  (none)"
 
 
 # ─── ARTICLE FETCHER ──────────────────────────────────────────────────────────
 
 def fetch_article_text(url):
+    """Fetch and clean article body text, capped at BODY_CHAR_LIMIT chars."""
     try:
-        r = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+        r = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code != 200:
+            return ""
         soup = BeautifulSoup(r.text, "html.parser")
-        for tag in soup(["nav", "footer", "script", "style", "header", "aside"]):
+        # Remove noise
+        for tag in soup(["script", "style", "nav", "footer", "header",
+                         "aside", "form", "iframe", "noscript"]):
             tag.decompose()
-        article = soup.find("article") or soup.find("main") or soup.body
-        return clean(article.get_text(separator=" ", strip=True))[:9000] if article else ""
+        # Prefer article body elements
+        body = (
+            soup.find("article") or
+            soup.find("main") or
+            soup.find(class_=re.compile(r"article|content|story|post", re.I)) or
+            soup.body
+        )
+        text = clean(body.get_text(separator=" ")) if body else ""
+        return text[:BODY_CHAR_LIMIT]
     except Exception as e:
-        print(f"    fetch error: {e}")
+        print(f"    Fetch error: {e}")
         return ""
 
 
-# ─── CLAUDE EXTRACTION ────────────────────────────────────────────────────────
+# ─── CLAUDE CALLS ─────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """You are a nuclear energy industry analyst.
-
-Extract structured deal data from the article. Return JSON only — no markdown, no explanation.
-
-If the article does NOT describe a concrete nuclear deal, partnership, funding, licensing milestone,
-or deployment announcement: {"skip": true}
-
-If it IS relevant:
-{
-  "skip": false,
-  "company": "primary reactor developer or lead entity",
-  "reactor": "reactor technology name (e.g. Xe-100, Natrium, BWRX-300, Aurora) or 'unknown'",
-  "project": "specific project or site name, or 'Program-level' if no specific site",
-  "location": "City, State",
-  "country": "country of deployment",
-  "developer_country": "country of the reactor developer",
-  "partners": "key partners, comma-separated",
-  "deal": "short deal label, max 8 words",
-  "date": "YYYY-MM-DD",
-  "significance": "Signaling | Market development | Deployment",
-  "type": "deal category (e.g. PPA, MOU, ARDP Award, License Extension, New Build, Restart)",
-  "capital_sources": "funding sources and amounts if mentioned, else 'Not disclosed'",
-  "nrc_status": "NRC regulatory status if mentioned, else 'unknown'",
-  "timeline": "expected operation timeline if mentioned, else 'unknown'",
-  "summary": "1-2 sentence factual summary",
-  "source": "full article URL"
-}
-
-Significance levels:
-- Signaling = MOU, letter of intent, site study, feasibility, early announcement
-- Market development = Funded contract, licensing step, EPC award, design selection, DOE award
-- Deployment = Construction permit, financial close, commercial operation, restart, PPA with firm date"""
-
-
-def extract_deal(client, article, company_names, reactor_names, project_names):
-    """Call Claude with context about existing entities to aid matching."""
-    body = fetch_article_text(article["link"])
-
-    context = f"""
-Known companies: {', '.join(company_names[:40])}
-Known reactors: {', '.join(reactor_names[:30])}
-Known projects: {', '.join(project_names[:40])}
-
-Use the exact spelling from the known lists above when the article refers to them.
-If you identify a genuinely new company/reactor/project not in the lists, use your best name for it.
-"""
-
-    user_msg = f"""Title: {article['title']}
-URL: {article['link']}
-Published: {article.get('pub', '')}
-Summary: {article.get('summary', '')}
-Body: {body[:3500]}
-
-{context}"""
-
+def call_claude(client, system, user_msg, model=None):
+    """Single Claude API call, returns parsed JSON or None."""
+    use_model = model or MODEL
     try:
         resp = client.messages.create(
-            model=os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
-            max_tokens=1000,
-            system=SYSTEM_PROMPT,
+            model=use_model,
+            max_tokens=1200,
+            system=system,
             messages=[{"role": "user", "content": user_msg}],
         )
         raw = resp.content[0].text.strip()
-        # Strip markdown fences if present
         raw = re.sub(r"^```json\s*|\s*```$", "", raw, flags=re.DOTALL).strip()
         return json.loads(raw)
     except Exception as e:
-        print(f"    Claude error: {e}")
+        print(f"    Claude error ({use_model}): {e}")
         return None
+
+
+def pass1_include(client, title, body):
+    """Pass 1: should this article be included?"""
+    user_msg = PASS1_USER_TMPL.format(title=title, body=body[:4000])
+    result = call_claude(client, PASS1_SYSTEM, user_msg)
+    if not result:
+        return False, "claude error"
+    return result.get("include", False), result.get("reason", "")
+
+
+def pass2_extract(client, article, ref_data, model=None):
+    """Pass 2: extract structured deal fields."""
+    user_msg = PASS2_USER_TMPL.format(
+        title=article["title"],
+        url=article["link"],
+        date=article.get("date", "unknown"),
+        body=article.get("body", "")[:BODY_CHAR_LIMIT],
+        programs=format_reference_list(ref_data["program_lookup"]),
+        projects=format_reference_list(ref_data["project_lookup"]),
+        reactors=format_reference_list(ref_data["reactor_lookup"]),
+        fingerprints="\n".join(f"  {f}" for f in ref_data["fingerprints"][-50:]) or "  (none)",
+    )
+    return call_claude(client, PASS2_SYSTEM, user_msg, model=model)
 
 
 # ─── RSS SCRAPER ──────────────────────────────────────────────────────────────
 
 def scrape_feeds():
+    """Fetch RSS feeds and return candidate articles."""
     candidates = []
+    failed = []
     for feed_cfg in FEEDS:
         print(f"  Fetching: {feed_cfg['name']} ...", end=" ", flush=True)
         try:
             feed = feedparser.parse(feed_cfg["url"])
+            if feed.bozo and not feed.entries:
+                print("SKIP (unreadable)")
+                failed.append(feed_cfg["name"])
+                continue
+            # Company newsrooms have fewer but more targeted entries — read all
+            limit = feed_cfg.get("limit", 80)
             matched = 0
-            for entry in feed.entries[:80]:
+            for entry in feed.entries[:limit]:
                 title   = clean(entry.get("title", ""))
                 link    = entry.get("link", "")
-                summary = BeautifulSoup(entry.get("summary", ""), "html.parser").get_text()
-                pub     = entry.get("published", "")
+                summary = clean(BeautifulSoup(entry.get("summary", ""), "html.parser").get_text())
+                # Parse date
+                date = ""
+                if entry.get("published"):
+                    try:
+                        date = parsedate_to_datetime(entry.published).strftime("%Y-%m-%d")
+                    except Exception:
+                        date = entry.get("published", "")[:10]
                 if not title or not link:
                     continue
-                if is_relevant(title, summary):
+                if is_deal_candidate(title, summary):
+                    candidates.append({
+                        "title":   title,
+                        "link":    link,
+                        "summary": summary,
+                        "date":    date,
+                        "source":  feed_cfg["name"],
+                    })
                     matched += 1
-                    candidates.append({"title": title, "link": link, "summary": summary, "pub": pub})
-            print(f"{len(feed.entries)} entries, {matched} matched")
+            print(f"{matched} candidates")
         except Exception as e:
             print(f"ERROR: {e}")
-    print(f"\n  TOTAL: {len(candidates)} candidates\n")
-    return candidates
+            failed.append(feed_cfg["name"])
+    if failed:
+        print(f"\n  ⚠ {len(failed)} feeds skipped: {', '.join(failed)}")
+    # Deduplicate by link
+    seen_links = set()
+    unique = []
+    for c in candidates:
+        if c["link"] not in seen_links:
+            seen_links.add(c["link"])
+            unique.append(c)
+    return unique
 
 
-# ─── MAIN ─────────────────────────────────────────────────────────────────────
+# ─── CURRENCY CONVERSION STUB ─────────────────────────────────────────────────
+
+# Approximate FX rates to USD (to be replaced with live API call later)
+FX_TO_USD = {
+    "USD millions":  1.0,
+    "USD billions":  1000.0,
+    "USD thousands": 0.001,
+    "EUR millions":  1.08,
+    "EUR billions":  1080.0,
+    "GBP millions":  1.27,
+    "GBP billions":  1270.0,
+    "JPY billions":  0.0067,
+    "CAD millions":  0.74,
+    "CAD billions":  740.0,
+}
+
+def to_usd_millions(value, unit):
+    """Convert capital value to USD millions. Returns None if not possible."""
+    if value is None or not unit:
+        return None
+    rate = FX_TO_USD.get(unit)
+    if rate is None:
+        return None
+    return round(float(value) * rate, 2)
+
+
+# ─── MAIN RUN ─────────────────────────────────────────────────────────────────
 
 def run():
     today = datetime.date.today().isoformat()
     now   = datetime.datetime.utcnow().isoformat()
 
     print(f"\n{'='*65}")
-    print(f"Nuclear Deal Scraper (Relational) — {today}")
+    print(f"Nuclear Deal Scraper v2 — {today}")
     print(f"{'='*65}\n")
 
-    gc    = get_gsheet_client()
-    sheet = gc.open_by_key(os.environ["GOOGLE_SHEET_ID"])
-    ensure_tabs(sheet)
-
-    # ── Load lookup tables ───────────────────────────────────────────
-    print("  Loading lookup tables...")
-    company_lookup = load_lookup(sheet, TAB_COMPANIES, "company_id", "Company Name")
-    reactor_lookup = load_lookup(sheet, TAB_REACTORS,  "reactor_id", "Reactor Name")
-    project_lookup = load_lookup(sheet, TAB_PROJECTS,  "project_id", "Project Name")
-    seen_hashes    = load_seen_hashes(sheet)
-
-    company_names = [name for _, name in company_lookup]
-    reactor_names = [name for _, name in reactor_lookup]
-    project_names = [name for _, name in project_lookup]
-
-    existing_ann   = load_tab(sheet, TAB_ANNOUNCEMENTS)
-    next_ann_id    = max([int(r["ann_id"]) for r in existing_ann if str(r.get("ann_id","")).isdigit()], default=0) + 1
-
-    # ── Pre-cache worksheet handles & ID counters to avoid per-upsert API hits ──
-    _id_counters[TAB_COMPANIES]     = max([int(cid) for cid, _ in company_lookup], default=0)
-    _id_counters[TAB_REACTORS]      = max([int(rid) for rid, _ in reactor_lookup], default=0)
-    _id_counters[TAB_PROJECTS]      = max([int(pid) for pid, _ in project_lookup], default=0)
-    _id_counters[TAB_ANNOUNCEMENTS] = next_ann_id - 1
-    for tab in [TAB_COMPANIES, TAB_REACTORS, TAB_PROJECTS, TAB_ANNOUNCEMENTS, TAB_SEEN, TAB_REVIEW]:
-        get_ws(sheet, tab)  # pre-warm the cache
-
-    print(f"  {len(company_lookup)} companies, {len(reactor_lookup)} reactors, {len(project_lookup)} projects")
-    print(f"  {len(seen_hashes)} seen hashes, {len(existing_ann)} existing announcements\n")
-
+    # ── Clients ──────────────────────────────────────────────────────
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    gc     = get_gsheet_client()
+    sheet  = gc.open_by_key(os.environ["GOOGLE_SHEET_ID"])
+
+    # ── Ensure operational tabs exist ────────────────────────────────
+    ensure_tab(sheet, TAB_SEEN,   SEEN_COLS)
+    ensure_tab(sheet, TAB_REVIEW, REVIEW_COLS)
+
+    # ── Load reference data ──────────────────────────────────────────
+    print("Loading reference data...")
+    ref = load_reference_data(sheet)
+    seen_hashes = load_seen_hashes(sheet)
+    print(f"  {len(ref['program_lookup'])} programs, {len(ref['project_lookup'])} projects, "
+          f"{len(ref['reactor_lookup'])} reactors, {len(ref['fingerprints'])} existing deals\n")
 
     # ── Scrape feeds ─────────────────────────────────────────────────
+    print("Scraping feeds...")
     candidates = scrape_feeds()
+    print(f"\n  {len(candidates)} total candidates after dedup\n")
 
+    # ── Process articles ─────────────────────────────────────────────
     new_seen     = []
     new_ann      = []
     review_rows  = []
     review_id    = 1
+    deal_counter = 0
+    skipped      = 0
+    duplicates   = 0
 
     for article in candidates:
         h = entry_hash(article["title"], article["link"])
+
+        # Skip already-processed articles
         if h in seen_hashes:
             continue
 
         print(f"  ⟳ {article['title'][:80]}")
-        result = extract_deal(client, article, company_names, reactor_names, project_names)
 
-        new_seen.append([h, article["title"], article["link"]])
+        # ── Fetch full article body ───────────────────────────────
+        body = fetch_article_text(article["link"])
+        article["body"] = body or article["summary"]
 
-        if not result or result.get("skip"):
-            print("    ↷ Skipped (not a deal)")
+        # ── Pass 1: include/exclude ───────────────────────────────
+        include, reason = pass1_include(client, article["title"], article["body"])
+        if not include:
+            print(f"    ↷ Excluded: {reason}")
+            new_seen.append({
+                "hash": h, "title": article["title"],
+                "url": article["link"], "scraped_at": now
+            })
+            skipped += 1
             continue
 
-        # Drop pre-2024 deals
+        print(f"    ✓ Included: {reason}")
+
+        # ── Date filter ───────────────────────────────────────────
+        year_str = article.get("date", "")[:4]
         try:
-            if int(result.get("date", "0")[:4]) < 2024:
-                print("    ↷ Too old")
+            if year_str and int(year_str) < MIN_YEAR:
+                print(f"    ↷ Too old ({year_str})")
+                new_seen.append({
+                    "hash": h, "title": article["title"],
+                    "url": article["link"], "scraped_at": now
+                })
                 continue
         except Exception:
             pass
 
-        company_name = clean(result.get("company", ""))
-        reactor_name = clean(result.get("reactor", ""))
-        project_name = clean(result.get("project", ""))
+        # ── Pass 2: extract structured fields ────────────────────
+        result = pass2_extract(client, article, ref)
 
-        # ── Upsert into lookup tables ─────────────────────────────
-        issues = []
+        # Escalate to stronger model if low confidence
+        if result and result.get("confidence") == "Low":
+            print(f"    ↑ Escalating to {ESCALATION_MODEL} (low confidence)")
+            result_escalated = pass2_extract(client, article, ref, model=ESCALATION_MODEL)
+            if result_escalated:
+                result = result_escalated
 
-        company_id = upsert_company(sheet, company_name, company_lookup)
-        if not company_id:
-            issues.append("no company")
-
-        reactor_id = upsert_reactor(sheet, reactor_name, company_name, reactor_lookup)
-        # reactor_id can be None (not every deal names a specific reactor)
-
-        project_id = upsert_project(sheet, project_name, company_name, reactor_name, project_lookup)
-        # project_id can be None (program-level deals ok)
-
-        # ── Flag for review if company missing ────────────────────
-        if issues:
+        if not result:
+            print("    ✗ Extraction failed — sending to Review")
             review_rows.append({
-                "review_id":    review_id,
-                "scraped_at":   now,
-                "article_title":article["title"],
-                "article_url":  article["link"],
-                "raw_company":  company_name,
-                "raw_reactor":  reactor_name,
-                "raw_project":  project_name,
-                "issue":        "; ".join(issues),
-                "raw_json":     json.dumps(result)[:500],
+                "Review ID":     f"REV-{review_id:03d}",
+                "Scraped At":    now,
+                "Article Title": article["title"],
+                "Article URL":   article["link"],
+                "Reason":        "extraction failed",
+                "Raw Extraction": "",
             })
             review_id += 1
-            print(f"    ⚠ Flagged for review: {'; '.join(issues)}")
+            new_seen.append({
+                "hash": h, "title": article["title"],
+                "url": article["link"], "scraped_at": now
+            })
             continue
 
+        # ── Duplicate check ───────────────────────────────────────
+        if result.get("is_duplicate"):
+            print(f"    ≡ Duplicate: {result.get('duplicate_reason','')}")
+            duplicates += 1
+            new_seen.append({
+                "hash": h, "title": article["title"],
+                "url": article["link"], "scraped_at": now
+            })
+            continue
+
+        # ── Assign Deal ID ────────────────────────────────────────
+        deal_counter += 1
+        deal_id = next_id(sheet, TAB_ANNOUNCEMENTS, "DEAL")
+
+        # ── USD conversion ────────────────────────────────────────
+        cap_low  = result.get("capital_value_low")
+        cap_high = result.get("capital_value_high")
+        cap_unit = result.get("capital_unit")
+        usd_low  = to_usd_millions(cap_low, cap_unit)
+        usd_high = to_usd_millions(cap_high, cap_unit)
+
         # ── Build announcement row ────────────────────────────────
-        sig_icon = {
-            "Deployment":         "🟢",
-            "Market development": "🟡",
-            "Signaling":          "🔵",
-        }.get(result.get("significance", ""), "⚪")
+        needs_review = result.get("needs_review", False) or result.get("confidence") == "Low"
 
         ann = {
-            "ann_id":            next_id(sheet, TAB_ANNOUNCEMENTS, "ann_id"),
-            "Date":              result.get("date", ""),
-            "Company":           company_name,
-            "Reactor":           reactor_name if reactor_name.lower() not in ("unknown","tbd","") else "",
-            "Project":           project_name if project_name.lower() not in ("unknown","tbd","") else "",
-            "Deal / Announcement": result.get("deal", ""),
-            "Partners":          result.get("partners", ""),
-            "Location":          result.get("location", ""),
-            "Country":           result.get("country", ""),
-            "Significance":      result.get("significance", ""),
-            "Type":              result.get("type", ""),
-            "Capital Sources":   result.get("capital_sources", ""),
-            "NRC Status":        result.get("nrc_status", ""),
-            "Timeline":          result.get("timeline", ""),
-            "Summary":           result.get("summary", ""),
-            "Source":            result.get("source", article["link"]),
-            "scraped_at":        now,
+            "Deal ID":               deal_id,
+            "Reactor ID":            result.get("reactor_id") or "",
+            "Project ID":            result.get("project_id") or "",
+            "Program ID":            result.get("program_id") or "",
+            "Deal Type":             result.get("deal_type", ""),
+            "Significance":          result.get("significance", ""),
+            "Impact":                result.get("impact", ""),
+            "Announcement Date":     result.get("announcement_date", article.get("date", "")),
+            "Partners":              result.get("partners", ""),
+            "Deal Summary":          result.get("deal_summary", ""),
+            "Capital Value (low)":   cap_low if cap_low is not None else "",
+            "Capital Value (high)":  cap_high if cap_high is not None else "",
+            "Capital Unit":          cap_unit or "",
+            "Value Type":            result.get("value_type", "") or "",
+            "Capital Source":        result.get("capital_source", ""),
+            "USD Val low (calc.)":   usd_low if usd_low is not None else "",
+            "USD Val high (calc.)":  usd_high if usd_high is not None else "",
+            "Source URL":            article["link"],
+            "Confidence":            result.get("confidence", "Medium"),
+            "Needs Review":          "Yes" if needs_review else "No",
         }
         new_ann.append(ann)
 
-        # Keep lookups fresh for subsequent articles in same run
-        if company_name and company_name not in company_names:
-            company_names.append(company_name)
-        if reactor_name and reactor_name not in reactor_names:
-            reactor_names.append(reactor_name)
-        if project_name and project_name not in project_names:
-            project_names.append(project_name)
+        # Update in-memory fingerprints so later articles in same run dedup correctly
+        fp = f"{ann['Project ID']}/{ann['Program ID']}/{ann['Deal Type']}/{ann['Deal Summary'][:80]}"
+        ref["fingerprints"].append(fp)
 
-        print(f"    {sig_icon} NEW [{result.get('significance')}] {company_name} — {result.get('deal','')}")
+        conf_icon = "🟡" if result.get("confidence") == "Medium" else ("🔴" if result.get("confidence") == "Low" else "🟢")
+        review_flag = " → REVIEW" if needs_review else ""
+        print(f"    ✚ {deal_id} | {ann['Deal Type']} | {ann['Significance']} | conf={ann['Confidence']} {conf_icon}{review_flag}")
+        print(f"      Project: {ann['Project ID'] or ann['Program ID'] or '⚠ unlinked'}")
 
-    # ── Write to sheet ────────────────────────────────────────────────
-    print()
+        # Mark as seen
+        new_seen.append({
+            "hash": h, "title": article["title"],
+            "url": article["link"], "scraped_at": now
+        })
+
+        # Low-confidence also gets a Review row for human inspection
+        if needs_review:
+            review_rows.append({
+                "Review ID":     f"REV-{review_id:03d}",
+                "Scraped At":    now,
+                "Article Title": article["title"],
+                "Article URL":   article["link"],
+                "Reason":        f"confidence={result.get('confidence')}; needs_review={result.get('needs_review')}",
+                "Raw Extraction": json.dumps(result),
+            })
+            review_id += 1
+
+        time.sleep(0.5)   # gentle rate limiting
+
+    # ── Batch write to Sheets ─────────────────────────────────────────
+    print(f"\n{'─'*65}")
+    print(f"Run summary:")
+    print(f"  Candidates processed : {len(candidates)}")
+    print(f"  Excluded (pass 1)    : {skipped}")
+    print(f"  Duplicates           : {duplicates}")
+    print(f"  New deals            : {len(new_ann)}")
+    print(f"  Sent to Review       : {len(review_rows)}")
+
     if new_ann:
-        rows = [[a.get(c, "") for c in ANNOUNCEMENT_COLS] for a in new_ann]
-        sheet.worksheet(TAB_ANNOUNCEMENTS).append_rows(rows)
-        print(f"  ✅ Appended {len(new_ann)} new announcement(s)")
-    else:
-        print("  — No new announcements to append")
+        print(f"\nWriting {len(new_ann)} announcements to Sheet...")
+        append_rows_batch(sheet, TAB_ANNOUNCEMENTS, new_ann)
+        print("  Done.")
 
     if review_rows:
-        rrows = [[r.get(c, "") for c in REVIEW_COLS] for r in review_rows]
-        sheet.worksheet(TAB_REVIEW).append_rows(rrows)
-        print(f"  ⚠  {len(review_rows)} item(s) flagged for review in '{TAB_REVIEW}' tab")
+        print(f"Writing {len(review_rows)} review items...")
+        append_rows_batch(sheet, TAB_REVIEW, review_rows)
+        print("  Done.")
 
-    save_seen(sheet, new_seen)
-    print(f"\n  Done — {len(new_ann)} added, {len(review_rows)} for review | {today}\n")
+    if new_seen:
+        print(f"Logging {len(new_seen)} seen hashes...")
+        append_rows_batch(sheet, TAB_SEEN, new_seen)
+        print("  Done.")
+
+    print(f"\n✓ Scraper complete — {today}\n")
 
 
 if __name__ == "__main__":
