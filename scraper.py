@@ -1,1280 +1,776 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nuclear Deal Tracker — EFI Foundation</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --navy:    #05152e;
-  --navy2:   #0a2a5a;
-  --blue:    #1a5fa8;
-  --blue2:   #2d7dd2;
-  --sky:     #5aabff;
-  --ice:     #dce8f0;
-  --slate:   #3a5268;
-  --muted:   #8a9db5;
-  --bg:      #f4f7fa;
-  --white:   #ffffff;
-  --border:  #dce8f0;
-  /* significance colors */
-  --c-deploy:  #1e6b3c; --bg-deploy:  #e6f4ec;
-  --c-finance: #7b3f00; --bg-finance: #fef0e0;
-  --c-offtake: #1a5fa8; --bg-offtake: #e8f0fb;
-  --c-market:  #6b3080; --bg-market:  #f4eafb;
-  --c-signal:  #2a5a6b; --bg-signal:  #e4f3f8;
-  --c-policy:  #555;    --bg-policy:  #f0f0f0;
-  /* impact */
-  --c-high:   #b91c1c; --bg-high:   #fee2e2;
-  --c-medium: #b45309; --bg-medium: #fef3c7;
-  --c-low:    #374151; --bg-low:    #f3f4f6;
-}
-body { font-family: 'Source Sans 3', sans-serif; background: var(--bg); color: #1a2840; min-height: 100vh; }
+"""
+nuclear_scraper.py  —  v2 (relational schema)
+===============================================
+Scrapes nuclear industry RSS feeds, extracts structured deal data using
+Claude, and writes to the new 4-tab Google Sheet schema:
+  Programs → Projects → Reactors → Announcements
 
-/* ── NAV ── */
-nav {
-  background: var(--white);
-  border-bottom: 1px solid var(--border);
-  padding: 0 48px;
-  display: flex; align-items: center; justify-content: space-between;
-  height: 60px; position: sticky; top: 0; z-index: 300;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
-}
-.nav-logo { display: flex; align-items: center; gap: 10px; }
-.nav-icon { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg,#1a5fa8,#0a3060); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
-.nav-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--blue); text-transform: uppercase; line-height: 1.2; }
-.nav-sub   { font-size: 9px; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
-.nav-right { display: flex; align-items: center; gap: 20px; }
-.nav-tabs  { display: flex; gap: 2px; background: var(--bg); border-radius: 8px; padding: 3px; }
-.nav-tab   { padding: 6px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; border: none; background: none; transition: all 0.15s; letter-spacing: 0.02em; font-family: inherit; }
-.nav-tab.active { background: var(--white); color: var(--blue); box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
-.review-badge { background: #fee2e2; color: #b91c1c; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; display: none; }
-.review-badge.show { display: inline-block; }
+Architecture
+------------
+1. Load reference data  — read Programs + Projects from Sheet at startup
+2. Scrape feeds         — fetch RSS entries, filter by deal keywords
+3. Fetch article text   — pull full body (~8k chars) for each candidate
+4. Two-pass extraction  — Pass 1: include/exclude decision
+                          Pass 2: structured field extraction (if included)
+5. Deduplicate          — fingerprint against existing Announcements rows
+6. Write output         — append to Announcements; flag low-confidence rows
 
-/* ── HERO ── */
-.hero {
-  background: linear-gradient(135deg, #05152e 0%, #0a2a5a 55%, #0d3878 100%);
-  padding: 52px 48px 44px; position: relative; overflow: hidden;
-}
-.hero-watermark {
-  position: absolute; right: -40px; top: -20px;
-  font-family: 'Playfair Display', serif; font-size: 200px; font-weight: 800;
-  color: rgba(255,255,255,0.03); line-height: 1; user-select: none; pointer-events: none; white-space: nowrap;
-}
-.hero-inner { max-width: 1280px; margin: 0 auto; }
-.hero-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--sky); font-weight: 700; margin-bottom: 10px; }
-.hero h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 42px; font-weight: 700; color: #fff; line-height: 1.15; margin-bottom: 12px; }
-.hero-sub { font-size: 15px; color: #a8c4e0; line-height: 1.7; max-width: 520px; margin-bottom: 32px; }
+Environment variables required
+-------------------------------
+  ANTHROPIC_API_KEY
+  GOOGLE_SHEET_ID          (new sheet: 1K_Be4gnuxUrWaTR_L_2FKwHH9l6q9UYgtfkFBDLznBA)
+  GOOGLE_SERVICE_ACCOUNT_JSON  (service account JSON as a string)
+  ANTHROPIC_MODEL          (optional, defaults to claude-haiku-4-5-20251001)
+"""
 
-/* ── KPI CARDS ── */
-.kpi-row { display: grid; grid-template-columns: repeat(6, 1fr) 2fr; gap: 12px; }
-.kpi-card {
-  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.13);
-  border-radius: 10px; padding: 16px 20px; transition: background 0.15s;
-}
-.kpi-card:hover { background: rgba(255,255,255,0.1); }
-.kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: #7a9abf; font-weight: 700; margin-bottom: 6px; }
-.kpi-value { font-size: 28px; font-weight: 700; color: #fff; font-family: 'Playfair Display', serif; line-height: 1; }
-.kpi-sub   { font-size: 11px; color: #7a9abf; margin-top: 3px; }
-.kpi-sig-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.kpi-sig-item { display: flex; flex-direction: column; gap: 2px; }
-.kpi-sig-n    { font-size: 18px; font-weight: 700; color: #fff; font-family: 'Playfair Display', serif; line-height: 1; }
-.kpi-sig-l    { font-size: 10px; color: #7a9abf; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+import os
+import re
+import json
+import time
+import hashlib
+import datetime
 
-/* ── CONTENT ── */
-.content { max-width: 1280px; margin: 0 auto; padding: 32px 48px 80px; }
-.tab-pane { display: none; }
-.tab-pane.active { display: block; }
+import feedparser
+import requests
+from bs4 import BeautifulSoup
+import anthropic
+import gspread
+from google.oauth2.service_account import Credentials
 
-/* ── FILTERS ── */
-.filters {
-  background: var(--white); border: 1px solid var(--border); border-radius: 8px;
-  padding: 20px 24px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-}
-.filter-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.filter-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); font-weight: 700; }
-.filter-actions { display: flex; gap: 8px; align-items: center; }
-.btn-reset { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 5px 14px; font-size: 12px; color: var(--muted); cursor: pointer; font-family: inherit; transition: all 0.12s; }
-.btn-reset:hover { border-color: var(--blue); color: var(--blue); }
-.btn-download { background: var(--blue); border: none; border-radius: 6px; padding: 6px 16px; font-size: 12px; font-weight: 600; color: #fff; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 6px; transition: background 0.12s; }
-.btn-download:hover { background: var(--navy2); }
-.filter-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
-.sel-wrap label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
-.sel-wrap select, .sel-wrap input[type=date] {
-  width: 100%; border: 1px solid var(--border); border-radius: 6px;
-  padding: 7px 10px; font-size: 13px; color: #1a2840; background: var(--white);
-  outline: none; cursor: pointer; font-family: inherit; transition: border-color 0.12s;
-}
-.sel-wrap select { padding-right: 28px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 5 5-5' stroke='%236b7c93' stroke-width='1.5' fill='none'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; appearance: none; }
-.sel-wrap select:focus, .sel-wrap input:focus { border-color: var(--blue); }
-.filter-row2 { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
-.toggle-wrap { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.toggle-wrap input { display: none; }
-.toggle-track { width: 34px; height: 18px; background: var(--border); border-radius: 99px; position: relative; transition: background 0.15s; flex-shrink: 0; cursor: pointer; }
-.toggle-thumb { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: #fff; border-radius: 50%; transition: transform 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
-.toggle-wrap input:checked + .toggle-track { background: var(--blue); }
-.toggle-wrap input:checked + .toggle-track .toggle-thumb { transform: translateX(16px); }
-.toggle-label { font-size: 12px; color: var(--slate); font-weight: 600; }
 
-/* ── TABLE ── */
-.table-wrap { background: var(--white); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
-.table-toolbar { padding: 14px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: #fafcff; }
-.table-count { font-size: 13px; color: var(--slate); font-weight: 600; }
-.col-heads { display: grid; grid-template-columns: var(--tgrid); padding: 10px 24px; background: var(--bg); border-bottom: 1px solid var(--border); }
-.col-head { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 4px; }
-.col-head:hover { color: var(--blue); }
-.col-head .sort-arrow { opacity: 0.3; font-size: 9px; }
-.col-head.sorted .sort-arrow { opacity: 1; color: var(--blue); }
-.trow { display: grid; grid-template-columns: var(--tgrid); padding: 13px 24px; border-bottom: 1px solid #edf2f8; align-items: start; transition: background 0.1s; }
-.trow:hover { background: #f8fbfe; }
-.trow:last-child { border-bottom: none; }
-.cell { font-size: 13px; color: var(--slate); line-height: 1.4; }
-.cell-date { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.cell-summary { font-size: 13px; color: var(--slate); line-height: 1.5; }
-.cell-link { color: var(--blue); text-decoration: none; font-size: 12px; }
-.cell-link:hover { text-decoration: underline; }
-.cell-id { font-size: 11px; color: var(--muted); font-family: monospace; }
-.lbtn { background: none; border: none; padding: 0; cursor: pointer; color: var(--blue); font-size: 13px; font-weight: 600; text-align: left; font-family: inherit; transition: color 0.12s; line-height: 1.4; }
-.lbtn:hover { color: var(--navy2); text-decoration: underline; }
-.intl-flag { font-size: 10px; color: var(--muted); background: #f0f0f0; border-radius: 3px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
-.empty { padding: 48px 24px; text-align: center; font-size: 14px; color: var(--muted); }
-.loading { padding: 60px 24px; text-align: center; }
-.spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.loading-text { font-size: 14px; color: var(--muted); }
-.error-msg { padding: 40px 24px; text-align: center; font-size: 14px; color: #b91c1c; }
+# ─── CONFIG ───────────────────────────────────────────────────────────────────
 
-/* ── BADGES ── */
-.badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.badge-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
-.b-deployment  { color: var(--c-deploy);  background: var(--bg-deploy); }
-.b-deployment .badge-dot  { background: var(--c-deploy); }
-.b-financing   { color: var(--c-finance); background: var(--bg-finance); }
-.b-financing .badge-dot   { background: var(--c-finance); }
-.b-offtake     { color: var(--c-offtake); background: var(--bg-offtake); }
-.b-offtake .badge-dot     { background: var(--c-offtake); }
-.b-market      { color: var(--c-market);  background: var(--bg-market); }
-.b-market .badge-dot      { background: var(--c-market); }
-.b-signaling   { color: var(--c-signal);  background: var(--bg-signal); }
-.b-signaling .badge-dot   { background: var(--c-signal); }
-.b-policy      { color: var(--c-policy);  background: var(--bg-policy); }
-.b-policy .badge-dot      { background: var(--c-policy); }
-.b-high   { color: var(--c-high);   background: var(--bg-high); }
-.b-medium { color: var(--c-medium); background: var(--bg-medium); }
-.b-low    { color: var(--c-low);    background: var(--bg-low); }
-.b-review { color: #b91c1c; background: #fee2e2; }
-.b-entity { color: var(--slate); background: var(--bg); border: 1px solid var(--border); }
+MODEL           = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+ESCALATION_MODEL = "claude-sonnet-4-6"   # used when confidence is low
+BODY_CHAR_LIMIT = 9000                   # article body text cap
+MIN_YEAR        = 2024                   # drop deals announced before this
 
-/* ── MULTI-SELECT DROPDOWN ── */
-.ms-wrap { position: relative; }
-.ms-wrap label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
-.ms-trigger {
-  width: 100%; border: 1px solid var(--border); border-radius: 6px;
-  padding: 7px 28px 7px 10px; font-size: 13px; color: #1a2840; background: var(--white);
-  cursor: pointer; font-family: inherit; text-align: left; display: flex; align-items: center;
-  justify-content: space-between; gap: 4px; transition: border-color 0.12s; white-space: nowrap; overflow: hidden;
-}
-.ms-trigger:hover, .ms-wrap.open .ms-trigger { border-color: var(--blue); }
-.ms-trigger-text { overflow: hidden; text-overflow: ellipsis; flex: 1; }
-.ms-trigger-arrow { font-size: 9px; color: var(--muted); flex-shrink: 0; transition: transform 0.15s; }
-.ms-wrap.open .ms-trigger-arrow { transform: rotate(180deg); }
-.ms-count { background: var(--blue); color: #fff; font-size: 10px; font-weight: 700; border-radius: 99px; padding: 1px 6px; flex-shrink: 0; }
-.ms-dropdown {
-  position: absolute; top: calc(100% + 4px); left: 0; min-width: 100%; max-width: 280px;
-  background: var(--white); border: 1px solid var(--border); border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 200; display: none;
-  max-height: 240px; overflow-y: auto;
-}
-.ms-wrap.open .ms-dropdown { display: block; }
-.ms-search { padding: 8px 10px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--white); }
-.ms-search input { width: 100%; border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px; font-size: 12px; font-family: inherit; outline: none; }
-.ms-search input:focus { border-color: var(--blue); }
-.ms-option { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; font-size: 13px; color: var(--slate); transition: background 0.08s; }
-.ms-option:hover { background: #f4f8ff; }
-.ms-option input[type=checkbox] { width: 14px; height: 14px; accent-color: var(--blue); flex-shrink: 0; cursor: pointer; }
-.ms-option.select-all { border-bottom: 1px solid var(--border); font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; padding: 6px 12px; }
-.ms-option.select-all:hover { background: var(--bg); }
-.modal-overlay { position: fixed; inset: 0; background: rgba(5,15,35,0.55); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
-.modal-overlay.open { opacity: 1; pointer-events: all; }
-.modal-box { background: var(--white); border-radius: 10px; padding: 36px 40px; width: 100%; max-width: 580px; box-shadow: 0 24px 60px rgba(0,0,0,0.2); border: 1px solid var(--border); max-height: 90vh; overflow-y: auto; transform: translateY(12px); transition: transform 0.2s; }
-.modal-overlay.open .modal-box { transform: translateY(0); }
-.modal-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--blue); font-weight: 700; margin-bottom: 6px; }
-.modal-title { font-family: 'Playfair Display', Georgia, serif; font-size: 22px; font-weight: 700; color: #0a1828; line-height: 1.25; margin-bottom: 20px; }
-.drow { display: grid; grid-template-columns: 130px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px solid #edf2f8; align-items: start; }
-.drow:last-of-type { border-bottom: none; }
-.drow-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 700; padding-top: 2px; }
-.drow-val { font-size: 14px; color: #1a2840; line-height: 1.5; word-break: break-word; }
-.modal-desc { margin-top: 16px; font-size: 14px; color: var(--slate); line-height: 1.75; padding-top: 16px; border-top: 1px solid var(--border); }
-.modal-link { display: inline-flex; align-items: center; gap: 5px; margin-top: 14px; font-size: 13px; color: var(--blue); font-weight: 600; text-decoration: none; }
-.modal-link:hover { text-decoration: underline; }
-.modal-footer { margin-top: 24px; display: flex; justify-content: flex-end; }
-.btn-close { background: none; border: 1px solid var(--border); border-radius: 99px; padding: 7px 20px; font-size: 13px; color: var(--slate); cursor: pointer; font-family: inherit; transition: all 0.12s; }
-.btn-close:hover { background: var(--bg); border-color: var(--blue); color: var(--blue); }
+# Tab names (must match Google Sheet exactly)
+TAB_PROGRAMS      = "Programs"
+TAB_PROJECTS      = "Projects"
+TAB_REACTORS      = "Reactors"
+TAB_ANNOUNCEMENTS = "Announcements"
+TAB_SEEN          = "Seen"        # dedup hash log
+TAB_REVIEW        = "Review"      # low-confidence / needs-human-review
 
-/* ── TAB 2: ENTITY EXPLORER ── */
-.explorer-controls { background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
-.mode-tabs { display: flex; gap: 4px; background: var(--bg); border-radius: 8px; padding: 3px; border: 1px solid var(--border); }
-.mode-tab { padding: 7px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; border: none; background: none; transition: all 0.15s; font-family: inherit; }
-.mode-tab.active { background: var(--white); color: var(--blue); box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
-.explorer-select-wrap { flex: 1; min-width: 200px; max-width: 380px; }
-.explorer-select-wrap label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
-.explorer-select-wrap select { width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 8px 32px 8px 12px; font-size: 13px; color: #1a2840; background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 5 5-5' stroke='%236b7c93' stroke-width='1.5' fill='none'/%3E%3C/svg%3E") no-repeat right 10px center; appearance: none; outline: none; font-family: inherit; }
-.entity-detail { background: var(--white); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
-.entity-header { padding: 24px 28px; background: linear-gradient(135deg, #f8fbff, #f0f6ff); border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
-.entity-header-left h2 { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: #0a1828; margin-bottom: 8px; }
-.entity-meta { display: flex; gap: 8px; flex-wrap: wrap; }
-.entity-stat-row { display: flex; gap: 24px; margin-top: 12px; flex-wrap: wrap; }
-.entity-stat { text-align: center; }
-.entity-stat-n { font-size: 20px; font-weight: 700; color: var(--blue); font-family: 'Playfair Display', serif; }
-.entity-stat-l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
-.timeline-section { padding: 0; }
-.timeline-header { padding: 14px 28px; border-bottom: 1px solid var(--border); background: var(--bg); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; }
-.timeline-item { display: flex; gap: 16px; padding: 16px 28px; border-bottom: 1px solid #edf2f8; align-items: flex-start; transition: background 0.1s; }
-.timeline-item:hover { background: #f8fbfe; }
-.timeline-item:last-child { border-bottom: none; }
-.timeline-dot-col { display: flex; flex-direction: column; align-items: center; padding-top: 4px; }
-.timeline-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.timeline-line { width: 1px; background: var(--border); flex: 1; min-height: 20px; margin-top: 4px; }
-.timeline-content { flex: 1; }
-.timeline-date { font-size: 11px; color: var(--muted); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
-.timeline-summary { font-size: 13px; color: var(--slate); line-height: 1.5; margin-bottom: 6px; }
-.timeline-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.child-projects { padding: 16px 28px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-.proj-card { border: 1px solid var(--border); border-radius: 8px; padding: 16px; cursor: pointer; transition: all 0.15s; background: var(--white); }
-.proj-card:hover { border-color: var(--blue); box-shadow: 0 2px 8px rgba(26,95,168,0.12); }
-.proj-card-name { font-size: 14px; font-weight: 700; color: #0a1828; margin-bottom: 6px; line-height: 1.3; }
-.proj-card-meta { display: flex; gap: 6px; flex-wrap: wrap; }
-.proj-card-stat { font-size: 12px; color: var(--muted); margin-top: 8px; }
-.no-selection { padding: 60px 28px; text-align: center; }
-.no-selection-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
-.no-selection-text { font-size: 14px; color: var(--muted); }
+# Announcements column order (must match sheet col order exactly)
+ANNOUNCEMENT_COLS = [
+    "Deal ID",
+    "Reactor ID",
+    "Project ID",
+    "Program ID",
+    "Deal Type",
+    "Significance",
+    "Impact",
+    "Announcement Date",
+    "Partners",
+    "Deal Summary",
+    "Capital Value (low)",
+    "Capital Value (high)",
+    "Capital Unit",
+    "Value Type",
+    "Capital Source",
+    "USD Val low (calc.)",
+    "USD Val high (calc.)",
+    "Source URL",
+    "Confidence",
+    "Needs Review",
+]
 
-/* ── FOOTER ── */
-.footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-.footer-left { font-size: 12px; color: var(--muted); }
-.footer-link { font-size: 12px; color: var(--blue); text-decoration: none; }
-.footer-link:hover { text-decoration: underline; }
+REVIEW_COLS = [
+    "Review ID",
+    "Scraped At",
+    "Article Title",
+    "Article URL",
+    "Reason",
+    "Raw Extraction",
+]
 
-@media (max-width: 1024px) {
-  nav, .hero, .content { padding-left: 20px; padding-right: 20px; }
-  .kpi-row { grid-template-columns: repeat(2, 1fr); }
-  .filter-grid { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 700px) {
-  .kpi-row { grid-template-columns: 1fr 1fr; }
-  .filter-grid { grid-template-columns: repeat(2, 1fr); }
-  .hero h1 { font-size: 28px; }
-}
-</style>
-</head>
-<body>
+SEEN_COLS = ["hash", "title", "url", "scraped_at"]
 
-<!-- NAV -->
-<nav>
-  <div class="nav-logo">
-    <div class="nav-icon">⚛</div>
-    <div>
-      <div class="nav-title">EFI Foundation</div>
-      <div class="nav-sub">Nuclear Scaling Initiative</div>
-    </div>
-  </div>
-  <div class="nav-right">
-    <div class="nav-tabs">
-      <button class="nav-tab active" onclick="switchTab('feed')">Intelligence Feed</button>
-      <button class="nav-tab" onclick="switchTab('explorer')">Entity Explorer</button>
-    </div>
-    <span class="review-badge" id="review-badge">— needs review</span>
-  </div>
-</nav>
+# ─── RSS FEEDS ────────────────────────────────────────────────────────────────
+# Three tiers:
+#   1. Industry trade press       — primary deal coverage
+#   2. Government / regulatory    — NRC, DOE, IAEA official announcements
+#   3. Company newsrooms          — press releases from companies in our tracker
 
-<!-- HERO -->
-<div class="hero">
-  <div class="hero-watermark">Nuclear</div>
-  <div class="hero-inner">
-    <div class="hero-eyebrow">Advanced Reactor Pipeline</div>
-    <h1>Nuclear Deal Tracker</h1>
-    <p class="hero-sub">Tracking commercialization milestones, partnerships, and deployment announcements across U.S. advanced nuclear reactor developers.</p>
-    <div class="kpi-row" id="kpi-row">
-      <div class="kpi-card">
-        <div class="kpi-label">Capital Committed</div>
-        <div class="kpi-value" id="kpi-capital">—</div>
-        <div class="kpi-sub" id="kpi-capital-sub">USD billions</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Capacity Tracked</div>
-        <div class="kpi-value" id="kpi-capacity">—</div>
-        <div class="kpi-sub">GW across linked projects</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Programs</div>
-        <div class="kpi-value" id="kpi-programs">—</div>
-        <div class="kpi-sub">tracked initiatives</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Projects</div>
-        <div class="kpi-value" id="kpi-projects">—</div>
-        <div class="kpi-sub">across all programs</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Reactors</div>
-        <div class="kpi-value" id="kpi-reactors">—</div>
-        <div class="kpi-sub">units tracked</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Announcements</div>
-        <div class="kpi-value" id="kpi-total">—</div>
-        <div class="kpi-sub" id="kpi-total-sub">total tracked</div>
-      </div>
-      <div class="kpi-card" style="grid-column: span 2">
-        <div class="kpi-label">By Significance</div>
-        <div class="kpi-sig-grid" id="kpi-sig-grid">
-          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-deploy">—</span><span class="kpi-sig-l">Deployment</span></div>
-          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-finance">—</span><span class="kpi-sig-l">Financing</span></div>
-          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-offtake">—</span><span class="kpi-sig-l">Offtake</span></div>
-          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-market">—</span><span class="kpi-sig-l">Market dev</span></div>
-          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-signal">—</span><span class="kpi-sig-l">Signaling</span></div>
-          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-policy">—</span><span class="kpi-sig-l">Policy/Reg</span></div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+FEEDS = [
 
-<!-- CONTENT -->
-<div class="content">
+    # ── Tier 1: Industry trade press ─────────────────────────────────────────
+    {"name": "World Nuclear News",      "url": "https://www.world-nuclear-news.org/rss"},
+    {"name": "ANS Nuclear Newswire",    "url": "https://www.ans.org/news/feed"},
+    {"name": "NEI News",                "url": "https://www.nei.org/rss"},
+    {"name": "Power Magazine – Nuclear","url": "https://www.powermag.com/category/nuclear/feed/"},
+    {"name": "Power Engineering",       "url": "https://www.power-eng.com/feed/"},
+    {"name": "Utility Dive",            "url": "https://www.utilitydive.com/feeds/news/"},
+    {"name": "Neutron Bytes",           "url": "https://neutronbytes.com/feed/"},
+    {"name": "Nuclear Engineering Intl","url": "https://www.neimagazine.com/rss"},
+    {"name": "Canary Media",            "url": "https://www.canarymedia.com/rss"},
+    {"name": "Latitude Media",          "url": "https://www.latitudemedia.com/feed"},
+    {"name": "Atomic Insights",         "url": "https://atomicinsights.com/feed"},
+    {"name": "NucNet",                  "url": "https://nucnet.org/feed.rss"},
 
-  <!-- TAB 1: INTELLIGENCE FEED -->
-  <div class="tab-pane active" id="tab-feed">
-    <div class="filters">
-      <div class="filter-top">
-        <span class="filter-label">Filter Results</span>
-        <div class="filter-actions">
-          <button class="btn-reset" onclick="resetFilters()">Reset filters</button>
-          <button class="btn-download" onclick="downloadExcel()">⬇ Download Excel</button>
-        </div>
-      </div>
-      <div class="filter-grid">
-        <div class="ms-wrap" id="ms-sig"><label>Significance</label><button class="ms-trigger" onclick="toggleMs('ms-sig')"><span class="ms-trigger-text">All</span><span class="ms-trigger-arrow">▾</span></button><div class="ms-dropdown"></div></div>
-        <div class="ms-wrap" id="ms-type"><label>Deal Type</label><button class="ms-trigger" onclick="toggleMs('ms-type')"><span class="ms-trigger-text">All</span><span class="ms-trigger-arrow">▾</span></button><div class="ms-dropdown"></div></div>
-        <div class="ms-wrap" id="ms-entity"><label>Lead Entity Type</label><button class="ms-trigger" onclick="toggleMs('ms-entity')"><span class="ms-trigger-text">All</span><span class="ms-trigger-arrow">▾</span></button><div class="ms-dropdown"></div></div>
-        <div class="ms-wrap" id="ms-lead"><label>Primary Lead</label><button class="ms-trigger" onclick="toggleMs('ms-lead')"><span class="ms-trigger-text">All</span><span class="ms-trigger-arrow">▾</span></button><div class="ms-dropdown"></div></div>
-        <div class="ms-wrap" id="ms-state"><label>Location (State)</label><button class="ms-trigger" onclick="toggleMs('ms-state')"><span class="ms-trigger-text">All</span><span class="ms-trigger-arrow">▾</span></button><div class="ms-dropdown"></div></div>
-        <div class="ms-wrap" id="ms-impact"><label>Impact</label><button class="ms-trigger" onclick="toggleMs('ms-impact')"><span class="ms-trigger-text">All</span><span class="ms-trigger-arrow">▾</span></button><div class="ms-dropdown"></div></div>
-      </div>
-      <div class="filter-row2">
-        <div class="sel-wrap" style="display:flex;gap:8px;align-items:flex-end">
-          <div><label>Date from</label><input type="date" id="f-date-from"></div>
-          <div><label>Date to</label><input type="date" id="f-date-to"></div>
-        </div>
-        <label class="toggle-wrap" style="margin-left:16px">
-          <input type="checkbox" id="f-review" onchange="renderFeed()">
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-          <span class="toggle-label">Needs Review only</span>
-        </label>
-        <label class="toggle-wrap" style="margin-left:12px">
-          <input type="checkbox" id="f-us-only" checked onchange="renderFeed()">
-          <span class="toggle-track"><span class="toggle-thumb"></span></span>
-          <span class="toggle-label">US only</span>
-        </label>
-      </div>
-    </div>
+    # ── Tier 2: Government & regulatory ──────────────────────────────────────
+    {"name": "DOE Nuclear Energy",      "url": "https://www.energy.gov/ne/rss.xml"},
+    {"name": "DOE News",                "url": "https://www.energy.gov/news/rss.xml"},
+    {"name": "NRC News",                "url": "https://www.nrc.gov/reading-rm/doc-collections/news/rss.xml"},
+    {"name": "NRC Press Releases",      "url": "https://www.nrc.gov/reading-rm/doc-collections/press-releases/rss.xml"},
+    {"name": "IAEA Nuclear Power",      "url": "https://www.iaea.org/feeds/topical/nuclear-power.xml"},
+    {"name": "IAEA Newscenter",         "url": "https://www.iaea.org/newscenter/feed"},
 
-    <div class="table-wrap">
-      <div class="table-toolbar">
-        <span class="table-count" id="table-count">Loading…</span>
-      </div>
-      <div class="col-heads" style="--tgrid: 90px 110px 1fr 1.8fr 110px 110px 80px 36px">
-        <div class="col-head sorted" data-col="date" onclick="sortBy('date')">Date <span class="sort-arrow">↓</span></div>
-        <div class="col-head" data-col="type" onclick="sortBy('type')">Type <span class="sort-arrow">↕</span></div>
-        <div class="col-head" data-col="sig" onclick="sortBy('sig')">Significance <span class="sort-arrow">↕</span></div>
-        <div class="col-head" data-col="summary" onclick="sortBy('summary')">Summary <span class="sort-arrow">↕</span></div>
-        <div class="col-head" data-col="entity" onclick="sortBy('entity')">Lead <span class="sort-arrow">↕</span></div>
-        <div class="col-head" data-col="capital" onclick="sortBy('capital')">Capital <span class="sort-arrow">↕</span></div>
-        <div class="col-head" data-col="impact" onclick="sortBy('impact')">Impact <span class="sort-arrow">↕</span></div>
-        <div class="col-head"></div>
-      </div>
-      <div id="table-body">
-        <div class="loading"><div class="spinner"></div><div class="loading-text">Loading data…</div></div>
-      </div>
-    </div>
+    # ── Tier 3: Company newsrooms ─────────────────────────────────────────────
+    # Developers / vendors
+    {"name": "Holtec News",             "url": "https://holtecinternational.com/feed/"},
+    {"name": "NANO Nuclear IR",         "url": "https://ir.nanonuclearenergy.com/rss/news-releases.xml"},
+    {"name": "Helion Energy",           "url": "https://www.helionenergy.com/feed/"},
+    {"name": "TerraPower News",         "url": "https://www.terrapower.com/news/feed/"},
+    {"name": "Kairos Power",            "url": "https://kairospower.com/news/feed/"},
+    {"name": "Oklo IR",                 "url": "https://ir.oklo.com/news-releases/rss"},
+    {"name": "X-energy News",           "url": "https://x-energy.com/news/feed/"},
+    {"name": "Commonwealth Fusion",     "url": "https://cfs.energy/news/feed/"},
+    {"name": "GE Vernova Newsroom",     "url": "https://www.gevernova.com/news/press-releases/rss"},
+    {"name": "Westinghouse Newsroom",   "url": "https://www.westinghousenuclear.com/about/news/rss"},
+    {"name": "NuScale IR",              "url": "https://ir.nuscalepower.com/news-releases/rss"},
+    # Utilities
+    {"name": "TVA Newsroom",            "url": "https://www.tva.com/rss/news"},
+    {"name": "Duke Energy News",        "url": "https://news.duke-energy.com/rss/all.rss"},
+    {"name": "Dominion Energy News",    "url": "https://news.dominionenergy.com/press-releases/rss"},
+    {"name": "Constellation IR",        "url": "https://ir.constellationenergy.com/news-releases/rss"},
+    {"name": "Southern Company News",   "url": "https://www.southerncompany.com/news/rss"},
+    # Tech / hyperscalers
+    {"name": "Google Blog",             "url": "https://blog.google/rss/"},
+    {"name": "Microsoft On the Issues", "url": "https://blogs.microsoft.com/on-the-issues/feed/"},
+    {"name": "Meta Newsroom",           "url": "https://about.fb.com/rss/"},
+    {"name": "Amazon About",            "url": "https://www.aboutamazon.com/news/rss"},
+    # Finance
+    {"name": "Brookfield IR",           "url": "https://bam.brookfield.com/news-releases/rss"},
+]
 
-    <div class="footer">
-      <span class="footer-left">EFI Foundation · Nuclear Scaling Initiative · Updated daily via scraper</span>
-      <a href="https://efifoundation.org" target="_blank" rel="noreferrer" class="footer-link">efifoundation.org →</a>
-    </div>
-  </div>
+# Keywords that flag an article as a potential deal
+DEAL_KEYWORDS = [
+    "agreement", "deal", "contract", "ppa", "power purchase",
+    "mou", "memorandum", "partnership", "collaboration",
+    "investment", "funding", "loan", "grant", "award",
+    "financing", "license renewal", "license extension",
+    "restart", "new build", "construction permit",
+    "offtake", "signed", "announced", "selected",
+    "smr", "small modular", "advanced reactor",
+]
 
-  <!-- TAB 2: ENTITY EXPLORER -->
-  <div class="tab-pane" id="tab-explorer">
-    <div class="explorer-controls">
-      <div>
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);font-weight:700;margin-bottom:6px">View by</div>
-        <div class="mode-tabs">
-          <button class="mode-tab active" onclick="setMode('program')">Program</button>
-          <button class="mode-tab" onclick="setMode('project')">Project</button>
-          <button class="mode-tab" onclick="setMode('reactor')">Reactor</button>
-        </div>
-      </div>
-      <div class="explorer-select-wrap">
-        <label id="explorer-select-label">Select a Program</label>
-        <select id="explorer-select" onchange="loadEntity()">
-          <option value="">— choose one —</option>
-        </select>
-      </div>
-    </div>
 
-    <!-- Full entity list grid -->
-    <div id="entity-list" style="margin-bottom:20px"></div>
+# ─── PROMPTS ──────────────────────────────────────────────────────────────────
 
-    <div id="explorer-content">
-      <div class="no-selection">
-        <div class="no-selection-icon">🔍</div>
-        <div class="no-selection-text">Select a program, project, or reactor above to explore its announcement timeline.</div>
-      </div>
-    </div>
+PASS1_SYSTEM = """You are a nuclear industry analyst. Your job is to read a news article
+and decide whether it describes a concrete nuclear energy deal, agreement, financing event,
+license action, or deployment milestone that should be tracked in a deal database.
 
-    <div class="footer" style="margin-top:24px">
-      <span class="footer-left">EFI Foundation · Nuclear Scaling Initiative</span>
-      <a href="https://efifoundation.org" target="_blank" rel="noreferrer" class="footer-link">efifoundation.org →</a>
-    </div>
-  </div>
+Respond with JSON only. No prose, no markdown fences."""
 
-</div><!-- /content -->
+PASS1_USER_TMPL = """Article title: {title}
+Article text:
+{body}
 
-<!-- MODAL -->
-<div class="modal-overlay" id="modal-overlay">
-  <div class="modal-box">
-    <div class="modal-tag" id="modal-tag"></div>
-    <div class="modal-title" id="modal-title"></div>
-    <div id="modal-body"></div>
-    <div class="modal-footer">
-      <button class="btn-close" onclick="closeModal()">Close</button>
-    </div>
-  </div>
-</div>
+Does this article describe a trackable nuclear deal or milestone?
+A trackable item is one of:
+- A signed or announced agreement (PPA, MOU, JDA, EPC, collaboration)
+- A financing event (equity, debt, grant, DOE award)
+- A license action (renewal, restart approval, construction permit filed/approved)
+- A deployment milestone (COL filing, site permit, construction start)
+- A significant offtake or supply commitment
 
-<script>
-// ── DATA URLS ─────────────────────────────────────────────────────────────
-const URLS = {
-  programs:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vRi9-rq5z3jVJgmWZ97i6TX6K0Z_PBEuHgz-m5gchPxsPlJcWVC5W81WMktPCPeYoD0ZWHclZwja-Ct/pub?gid=422911434&single=true&output=csv',
-  projects:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vRi9-rq5z3jVJgmWZ97i6TX6K0Z_PBEuHgz-m5gchPxsPlJcWVC5W81WMktPCPeYoD0ZWHclZwja-Ct/pub?gid=208941472&single=true&output=csv',
-  reactors:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vRi9-rq5z3jVJgmWZ97i6TX6K0Z_PBEuHgz-m5gchPxsPlJcWVC5W81WMktPCPeYoD0ZWHclZwja-Ct/pub?gid=1115053940&single=true&output=csv',
-  announcements: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRi9-rq5z3jVJgmWZ97i6TX6K0Z_PBEuHgz-m5gchPxsPlJcWVC5W81WMktPCPeYoD0ZWHclZwja-Ct/pub?gid=1322645176&single=true&output=csv',
-};
+NOT trackable:
+- Opinion pieces, analysis, retrospectives
+- Policy speculation without a concrete action
+- Earnings reports with no specific deal
+- International news with no US nexus (unless a major framework)
+- Articles that only mention existing/prior deals with no new development
 
-// US states set for filtering
-const US_STATES = new Set([
-  'Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware',
-  'Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky',
-  'Louisiana','Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi',
-  'Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico',
-  'New York','North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania',
-  'Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont',
-  'Virginia','Washington','West Virginia','Wisconsin','Wyoming','Various','Multiple','TBD',''
-]);
+Respond with exactly this JSON:
+{{"include": true/false, "reason": "one sentence"}}"""
 
-// ── STATE ─────────────────────────────────────────────────────────────────
-let programs = [], projects = [], reactors = [], announcements = [];
-let programMap = {}, projectMap = {}, reactorMap = {};
-let filtered = [];
-let sortCol = 'date', sortDir = -1;
-let explorerMode = 'program';
 
-// ── CSV PARSER ────────────────────────────────────────────────────────────
-function parseCSV(text) {
-  const lines = text.trim().split('\n');
-  if (lines.length < 2) return [];
-  const headers = splitCSVLine(lines[0]);
-  return lines.slice(1).map(line => {
-    const fields = splitCSVLine(line);
-    const obj = {};
-    headers.forEach((h, i) => obj[h] = (fields[i] || '').trim());
-    return obj;
-  }).filter(r => Object.values(r).some(v => v));
-}
-function splitCSVLine(line) {
-  const fields = [];
-  let cur = '', inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      // Handle escaped quotes ("")
-      if (inQ && line[i+1] === '"') { cur += '"'; i++; }
-      else { inQ = !inQ; }
-    } else if (ch === ',' && !inQ) {
-      fields.push(cur);
-      cur = '';
-    } else {
-      cur += ch;
-    }
-  }
-  fields.push(cur);
-  return fields.map(f => f.trim().replace(/\r$/, ''));
-}
+PASS2_SYSTEM = """You are a nuclear industry deal analyst. Extract structured data from
+nuclear energy news articles. Return only valid JSON, no prose, no markdown fences.
 
-// ── DATE HELPERS ──────────────────────────────────────────────────────────
-function parseDate(d) {
-  if (!d) return 0;
-  const mdy = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (mdy) return new Date(`${mdy[3]}-${mdy[1].padStart(2,'0')}-${mdy[2].padStart(2,'0')}T00:00:00`).getTime();
-  if (/^\d{4}$/.test(d)) return new Date(`${d}-01-01T00:00:00`).getTime();
-  if (/^\d{4}-\d{2}$/.test(d)) return new Date(`${d}-01T00:00:00`).getTime();
-  return new Date(d + 'T00:00:00').getTime() || 0;
-}
-function fmtDate(d) {
-  if (!d) return '—';
-  if (/^\d{4}$/.test(d)) return d;
-  if (/^\d{4}-\d{2}$/.test(d)) {
-    const [y, m] = d.split('-');
-    return new Date(`${d}-01T00:00:00`).toLocaleDateString('en-US', {year:'numeric',month:'short'});
-  }
-  const ts = parseDate(d);
-  if (!ts) return d;
-  return new Date(ts).toLocaleDateString('en-US', {year:'numeric', month:'short', day:'numeric'});
-}
-function fmtDateShort(d) {
-  if (!d) return '—';
-  const ts = parseDate(d);
-  if (!ts) return d;
-  return new Date(ts).toLocaleDateString('en-US', {year:'numeric', month:'short'});
-}
+SIGNIFICANCE CATEGORIES (pick the highest applicable):
+- "Deployment"        → concrete construction, licensing, restart activity
+- "Financing"         → capital commitment with a specific dollar amount
+- "Offtake"           → binding/near-binding PPA or supply agreement
+- "Market development"→ preorders, site options, feasibility studies with capital at risk
+- "Signaling"         → non-binding MOUs, collaborations, intent without committed capital
+- "Policy / Regulatory" → government action, legislation, NRC decisions
 
-// ── ENRICH ANNOUNCEMENTS ──────────────────────────────────────────────────
-function enrichAnnouncements() {
-  announcements.forEach(a => {
-    // Strip any trailing carriage returns from all values
-    Object.keys(a).forEach(k => { if (typeof a[k] === 'string') a[k] = a[k].replace(/\r/g, '').trim(); });
-    const proj = a['Project ID'] ? projectMap[a['Project ID']] : null;
-    const prog = a['Program ID'] ? programMap[a['Program ID']] : null;
-    const reac = a['Reactor ID'] ? reactorMap[a['Reactor ID']] : null;
+IMPACT LEVELS:
+- "High"   → >$500M or >500 MW or landmark first-of-kind
+- "Medium" → $50M–$500M or 50–500 MW or notable but not landmark
+- "Low"    → <$50M or <50 MW or early-stage/feasibility
 
-    a._project = proj || null;
-    a._program = prog || null;
-    a._reactor = reac || null;
+DEAL TYPES:
+PPA, MOU, JDA, EPC, Financing, Grant, License, COLA Filing, ARDP Award,
+Collaboration, Preorder, DoD Contract, State Legislation / Grant,
+NRC License Renewal, NRC SLR Approval, SLR Application,
+Early Site Permit Application, Strategic Partnership, Announcement,
+Master Power Agreement, Funding Agreement, Other
 
-    // Resolve state via join
-    if (proj) {
-      a._state = proj['State'] || '';
-      a._lead  = proj['Primary Lead'] || prog?.['Lead Entity'] || '';
-      a._entityType = proj['Lead Entity Type'] || '';
-    } else if (prog) {
-      a._state = 'Multiple';
-      a._lead  = prog['Lead Entity'] || '';
-      a._entityType = '';
-    } else if (reac) {
-      a._state = reac['State'] || proj?.['State'] || '';
-      a._lead  = proj?.['Primary Lead'] || '';
-      a._entityType = proj?.['Lead Entity Type'] || '';
-    } else {
-      a._state = '';
-      a._lead  = '';
-      a._entityType = '';
+CAPITAL UNIT OPTIONS: USD millions, USD billions, USD thousands,
+EUR millions, EUR billions, GBP millions, GBP billions, JPY billions,
+CAD millions, CAD billions
+
+VALUE TYPE OPTIONS: Exact, Up to, At least, Range
+
+CAPITAL SOURCE OPTIONS: Equity, Debt, Grant, PPA, Mixed, Undisclosed
+
+CONFIDENCE: High / Medium / Low
+- High   → all key fields clearly stated in article
+- Medium → some fields inferred or partially stated
+- Low    → significant gaps or ambiguity
+
+ATTACHMENT RULE:
+- Set project_id if the deal can be tied to a specific project in the reference list
+- Set program_id only if it is clearly a program-level deal with no specific project
+- Set reactor_id only if a specific reactor unit is named
+- Default to project_id whenever possible"""
+
+
+PASS2_USER_TMPL = """Article title: {title}
+Article URL: {url}
+Article date: {date}
+
+Article text:
+{body}
+
+Known programs (match by name similarity):
+{programs}
+
+Known projects (match by name similarity):
+{projects}
+
+Known reactors (match by name similarity):
+{reactors}
+
+Existing announcements fingerprints (to avoid duplicates):
+{fingerprints}
+
+Extract the deal and return this JSON (use null for unknown fields):
+{{
+  "deal_type":         "string from allowed list",
+  "significance":      "string from allowed list",
+  "impact":            "High|Medium|Low",
+  "announcement_date": "YYYY-MM-DD or YYYY-MM or YYYY",
+  "partners":          "comma-separated counterparties (not the lead)",
+  "deal_summary":      "1-2 sentence description of what was agreed",
+  "capital_value_low": number or null,
+  "capital_value_high": number or null,
+  "capital_unit":      "string from allowed list or null",
+  "value_type":        "Exact|Up to|At least|Range or null",
+  "capital_source":    "string from allowed list",
+  "project_id":        "PROJ-XXX if matched, else null",
+  "program_id":        "PROG-XXX if matched and no project match, else null",
+  "reactor_id":        "REAC-XXX if a specific unit named, else null",
+  "confidence":        "High|Medium|Low",
+  "needs_review":      true/false,
+  "is_duplicate":      true/false,
+  "duplicate_reason":  "string or null"
+}}"""
+
+
+# ─── GOOGLE SHEETS ────────────────────────────────────────────────────────────
+
+def get_gsheet_client():
+    creds = Credentials.from_service_account_info(
+        json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"]),
+        scopes=["https://www.googleapis.com/auth/spreadsheets"],
+    )
+    return gspread.authorize(creds)
+
+
+def load_tab(spreadsheet, tab_name):
+    """Return list of dicts keyed by header row."""
+    ws = spreadsheet.worksheet(tab_name)
+    time.sleep(0.5)
+    return ws.get_all_records()
+
+
+def ensure_tab(spreadsheet, tab_name, headers):
+    """Create tab with headers if it doesn't exist."""
+    existing = [ws.title for ws in spreadsheet.worksheets()]
+    if tab_name not in existing:
+        ws = spreadsheet.add_worksheet(title=tab_name, rows=2000, cols=len(headers) + 2)
+        ws.append_row(headers)
+        print(f"  Created tab: {tab_name}")
+    return spreadsheet.worksheet(tab_name)
+
+
+def append_rows_batch(spreadsheet, tab_name, rows):
+    """Append a list of row-dicts to a tab in one batch."""
+    if not rows:
+        return
+    ws = spreadsheet.worksheet(tab_name)
+    # Get headers to order values correctly
+    headers = ws.row_values(1)
+    values = [[str(row.get(h, "") or "") for h in headers] for row in rows]
+    ws.append_rows(values, value_input_option="RAW")
+    time.sleep(1)
+
+
+def next_id(spreadsheet, tab_name, id_prefix, id_col=0):
+    """Return next sequential ID string like DEAL-042."""
+    ws = spreadsheet.worksheet(tab_name)
+    all_vals = ws.col_values(id_col + 1)[1:]  # skip header
+    existing = [v for v in all_vals if v.startswith(id_prefix + "-")]
+    if not existing:
+        return f"{id_prefix}-001"
+    nums = []
+    for v in existing:
+        try:
+            nums.append(int(v.split("-")[1]))
+        except Exception:
+            pass
+    return f"{id_prefix}-{(max(nums) + 1):03d}" if nums else f"{id_prefix}-001"
+
+
+# ─── REFERENCE DATA LOADER ────────────────────────────────────────────────────
+
+def load_reference_data(spreadsheet):
+    """
+    Load Programs, Projects, Reactors, and existing Announcement fingerprints.
+    Returns dicts and lists used for matching and deduplication.
+    """
+    print("  Loading Programs...")
+    programs = load_tab(spreadsheet, TAB_PROGRAMS)
+    program_lookup = [(r["Program ID"], r["Program Name"]) for r in programs if r.get("Program ID")]
+
+    print("  Loading Projects...")
+    projects = load_tab(spreadsheet, TAB_PROJECTS)
+    project_lookup = [(r["Project ID"], r["Project Name"], r.get("Primary Lead","")) for r in projects if r.get("Project ID")]
+
+    print("  Loading Reactors...")
+    reactors = load_tab(spreadsheet, TAB_REACTORS)
+    reactor_lookup = [(r["Reactor ID"], r["Unit Name / Number"], r.get("Project ID (opt.)","")) for r in reactors if r.get("Reactor ID")]
+
+    print("  Loading existing Announcements for deduplication...")
+    try:
+        announcements = load_tab(spreadsheet, TAB_ANNOUNCEMENTS)
+        # Fingerprint = project_id + deal_type + summary (first 80 chars)
+        fingerprints = [
+            f"{r.get('Project ID','')}/{r.get('Program ID','')}/{r.get('Deal Type','')}/{str(r.get('Deal Summary',''))[:80]}"
+            for r in announcements
+        ]
+    except Exception:
+        fingerprints = []
+
+    return {
+        "program_lookup":  program_lookup,
+        "project_lookup":  project_lookup,
+        "reactor_lookup":  reactor_lookup,
+        "fingerprints":    fingerprints,
     }
 
-    // Linked name for display
-    a._linkedName = proj?.['Project Name'] || prog?.['Program Name'] || reac?.['Unit Name / Number'] || '';
 
-    // Capital in USD millions
-    const capLow = parseFloat(a['USD Val low (calc.)']) || parseFloat(a['Capital Value (low)']) || 0;
-    a._capUSD = capLow;
+def load_seen_hashes(spreadsheet):
+    """Return set of already-processed article hashes."""
+    try:
+        ws = spreadsheet.worksheet(TAB_SEEN)
+        return set(ws.col_values(1)[1:])
+    except Exception:
+        return set()
 
-    // Is US?
-    a._isUS = US_STATES.has(a._state) || a._state === 'Multiple' || a._state === '';
-  });
+
+# ─── UTILITIES ────────────────────────────────────────────────────────────────
+
+def clean(s):
+    return re.sub(r"\s+", " ", str(s or "")).strip()
+
+
+def entry_hash(title, url):
+    return hashlib.md5(f"{title}{url}".encode()).hexdigest()
+
+
+def is_deal_candidate(title, summary):
+    text = (title + " " + summary).lower()
+    return any(kw in text for kw in DEAL_KEYWORDS)
+
+
+def format_reference_list(items, max_items=60):
+    """Format a lookup list as a compact string for the prompt."""
+    lines = []
+    for item in items[:max_items]:
+        if len(item) == 2:
+            lines.append(f"  {item[0]}: {item[1]}")
+        elif len(item) == 3:
+            lines.append(f"  {item[0]}: {item[1]} (lead: {item[2]})")
+    if len(items) > max_items:
+        lines.append(f"  ... and {len(items) - max_items} more")
+    return "\n".join(lines) if lines else "  (none)"
+
+
+# ─── ARTICLE FETCHER ──────────────────────────────────────────────────────────
+
+def fetch_article_text(url):
+    """Fetch and clean article body text, capped at BODY_CHAR_LIMIT chars."""
+    try:
+        r = requests.get(url, timeout=12, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code != 200:
+            return ""
+        soup = BeautifulSoup(r.text, "html.parser")
+        # Remove noise
+        for tag in soup(["script", "style", "nav", "footer", "header",
+                         "aside", "form", "iframe", "noscript"]):
+            tag.decompose()
+        # Prefer article body elements
+        body = (
+            soup.find("article") or
+            soup.find("main") or
+            soup.find(class_=re.compile(r"article|content|story|post", re.I)) or
+            soup.body
+        )
+        text = clean(body.get_text(separator=" ")) if body else ""
+        return text[:BODY_CHAR_LIMIT]
+    except Exception as e:
+        print(f"    Fetch error: {e}")
+        return ""
+
+
+# ─── CLAUDE CALLS ─────────────────────────────────────────────────────────────
+
+def call_claude(client, system, user_msg, model=None):
+    """Single Claude API call, returns parsed JSON or None."""
+    use_model = model or MODEL
+    try:
+        resp = client.messages.create(
+            model=use_model,
+            max_tokens=1200,
+            system=system,
+            messages=[{"role": "user", "content": user_msg}],
+        )
+        raw = resp.content[0].text.strip()
+        raw = re.sub(r"^```json\s*|\s*```$", "", raw, flags=re.DOTALL).strip()
+        return json.loads(raw)
+    except Exception as e:
+        print(f"    Claude error ({use_model}): {e}")
+        return None
+
+
+def pass1_include(client, title, body):
+    """Pass 1: should this article be included?"""
+    user_msg = PASS1_USER_TMPL.format(title=title, body=body[:4000])
+    result = call_claude(client, PASS1_SYSTEM, user_msg)
+    if not result:
+        return False, "claude error"
+    return result.get("include", False), result.get("reason", "")
+
+
+def pass2_extract(client, article, ref_data, model=None):
+    """Pass 2: extract structured deal fields."""
+    user_msg = PASS2_USER_TMPL.format(
+        title=article["title"],
+        url=article["link"],
+        date=article.get("date", "unknown"),
+        body=article.get("body", "")[:BODY_CHAR_LIMIT],
+        programs=format_reference_list(ref_data["program_lookup"]),
+        projects=format_reference_list(ref_data["project_lookup"]),
+        reactors=format_reference_list(ref_data["reactor_lookup"]),
+        fingerprints="\n".join(f"  {f}" for f in ref_data["fingerprints"][-50:]) or "  (none)",
+    )
+    return call_claude(client, PASS2_SYSTEM, user_msg, model=model)
+
+
+# ─── RSS SCRAPER ──────────────────────────────────────────────────────────────
+
+def scrape_feeds():
+    """Fetch RSS feeds and return candidate articles."""
+    candidates = []
+    failed = []
+    for feed_cfg in FEEDS:
+        print(f"  Fetching: {feed_cfg['name']} ...", end=" ", flush=True)
+        try:
+            feed = feedparser.parse(feed_cfg["url"])
+            if feed.bozo and not feed.entries:
+                print("SKIP (unreadable)")
+                failed.append(feed_cfg["name"])
+                continue
+            # Company newsrooms have fewer but more targeted entries — read all
+            limit = feed_cfg.get("limit", 80)
+            matched = 0
+            for entry in feed.entries[:limit]:
+                title   = clean(entry.get("title", ""))
+                link    = entry.get("link", "")
+                summary = clean(BeautifulSoup(entry.get("summary", ""), "html.parser").get_text())
+                # Parse date
+                date = ""
+                if entry.get("published"):
+                    try:
+                        date = parsedate_to_datetime(entry.published).strftime("%Y-%m-%d")
+                    except Exception:
+                        date = entry.get("published", "")[:10]
+                if not title or not link:
+                    continue
+                if is_deal_candidate(title, summary):
+                    candidates.append({
+                        "title":   title,
+                        "link":    link,
+                        "summary": summary,
+                        "date":    date,
+                        "source":  feed_cfg["name"],
+                    })
+                    matched += 1
+            print(f"{matched} candidates")
+        except Exception as e:
+            print(f"ERROR: {e}")
+            failed.append(feed_cfg["name"])
+    if failed:
+        print(f"\n  ⚠ {len(failed)} feeds skipped: {', '.join(failed)}")
+    # Deduplicate by link
+    seen_links = set()
+    unique = []
+    for c in candidates:
+        if c["link"] not in seen_links:
+            seen_links.add(c["link"])
+            unique.append(c)
+    return unique
+
+
+# ─── CURRENCY CONVERSION STUB ─────────────────────────────────────────────────
+
+# Approximate FX rates to USD (to be replaced with live API call later)
+FX_TO_USD = {
+    "USD millions":  1.0,
+    "USD billions":  1000.0,
+    "USD thousands": 0.001,
+    "EUR millions":  1.08,
+    "EUR billions":  1080.0,
+    "GBP millions":  1.27,
+    "GBP billions":  1270.0,
+    "JPY billions":  0.0067,
+    "CAD millions":  0.74,
+    "CAD billions":  740.0,
 }
 
-// ── BADGES ────────────────────────────────────────────────────────────────
-const SIG_CLASS = {
-  'Deployment': 'b-deployment', 'Financing': 'b-financing',
-  'Offtake': 'b-offtake', 'Market development': 'b-market',
-  'Signaling': 'b-signaling', 'Policy / Regulatory': 'b-policy',
-};
-const SIG_COLOR = {
-  'Deployment':'#1e6b3c','Financing':'#7b3f00','Offtake':'#1a5fa8',
-  'Market development':'#6b3080','Signaling':'#2a5a6b','Policy / Regulatory':'#555',
-};
-function sigBadge(s) {
-  const cls = SIG_CLASS[s] || 'b-policy';
-  return `<span class="badge ${cls}"><span class="badge-dot"></span>${s||'—'}</span>`;
-}
-function impactBadge(i) {
-  const cls = i === 'High' ? 'b-high' : i === 'Medium' ? 'b-medium' : 'b-low';
-  return `<span class="badge ${cls}">${i||'—'}</span>`;
-}
-function reviewBadge() {
-  return `<span class="badge b-review">Review</span>`;
-}
-
-// ── TAB SWITCHING ─────────────────────────────────────────────────────────
-function switchTab(tab) {
-  document.querySelectorAll('.nav-tab').forEach((t,i) => t.classList.toggle('active', ['feed','explorer'][i] === tab));
-  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-  document.getElementById(`tab-${tab}`).classList.add('active');
-}
-
-// ── MULTI-SELECT DROPDOWN ENGINE ─────────────────────────────────────────
-const msState = {}; // { msId: Set of selected values }
-
-function toggleMs(msId) {
-  const wrap = document.getElementById(msId);
-  const isOpen = wrap.classList.contains('open');
-  // Close all others
-  document.querySelectorAll('.ms-wrap.open').forEach(w => w.classList.remove('open'));
-  if (!isOpen) wrap.classList.add('open');
-}
-
-// Close dropdowns when clicking outside
-document.addEventListener('click', e => {
-  if (!e.target.closest('.ms-wrap')) {
-    document.querySelectorAll('.ms-wrap.open').forEach(w => w.classList.remove('open'));
-  }
-});
-
-function buildMs(msId, values, hasSearch = false) {
-  if (!msState[msId]) msState[msId] = new Set();
-  const dropdown = document.querySelector(`#${msId} .ms-dropdown`);
-  const sorted = [...new Set(values)].filter(Boolean).sort();
-
-  let html = '';
-  if (hasSearch) html += `<div class="ms-search"><input type="text" placeholder="Search…" oninput="filterMsOptions('${msId}', this.value)"></div>`;
-  html += `<div class="ms-option select-all" onclick="toggleMsAll('${msId}')"><input type="checkbox" id="${msId}-all" ${msState[msId].size === 0 ? 'checked' : ''}> All</div>`;
-  html += sorted.map(v => `
-    <div class="ms-option" onclick="toggleMsVal('${msId}','${v.replace(/'/g,"\\'")}',event)">
-      <input type="checkbox" ${msState[msId].has(v) ? 'checked' : ''}> ${v}
-    </div>`).join('');
-
-  dropdown.innerHTML = html;
-  updateMsTrigger(msId, sorted.length);
-}
-
-function toggleMsVal(msId, val, e) {
-  e.stopPropagation();
-  const set = msState[msId];
-  if (set.has(val)) set.delete(val); else set.add(val);
-  // Re-render checkboxes
-  const opts = document.querySelectorAll(`#${msId} .ms-option:not(.select-all)`);
-  opts.forEach(opt => {
-    const cb = opt.querySelector('input');
-    const optVal = opt.textContent.trim();
-    cb.checked = set.has(optVal);
-  });
-  const allCb = document.querySelector(`#${msId}-all`);
-  if (allCb) allCb.checked = set.size === 0;
-  updateMsTrigger(msId);
-  renderFeed();
-}
-
-function toggleMsAll(msId) {
-  msState[msId].clear();
-  document.querySelectorAll(`#${msId} .ms-option input`).forEach(cb => cb.checked = false);
-  const allCb = document.querySelector(`#${msId}-all`);
-  if (allCb) allCb.checked = true;
-  updateMsTrigger(msId);
-  renderFeed();
-}
-
-function filterMsOptions(msId, query) {
-  const q = query.toLowerCase();
-  document.querySelectorAll(`#${msId} .ms-option:not(.select-all)`).forEach(opt => {
-    opt.style.display = opt.textContent.trim().toLowerCase().includes(q) ? '' : 'none';
-  });
-}
-
-function updateMsTrigger(msId) {
-  const set = msState[msId];
-  const trigger = document.querySelector(`#${msId} .ms-trigger-text`);
-  const existingCount = document.querySelector(`#${msId} .ms-count`);
-  if (existingCount) existingCount.remove();
-  if (set.size === 0) {
-    trigger.textContent = 'All';
-  } else if (set.size === 1) {
-    trigger.textContent = [...set][0];
-  } else {
-    trigger.textContent = `${[...set][0]}`;
-    const countEl = document.createElement('span');
-    countEl.className = 'ms-count';
-    countEl.textContent = `+${set.size - 1}`;
-    document.querySelector(`#${msId} .ms-trigger`).insertBefore(countEl, document.querySelector(`#${msId} .ms-trigger-arrow`));
-  }
-}
-
-function getMsVals(msId) { return msState[msId] || new Set(); }
-
-// ── POPULATE FILTERS ──────────────────────────────────────────────────────
-function buildFilters() {
-  buildMs('ms-sig',    announcements.map(a => a['Significance']));
-  buildMs('ms-type',   announcements.map(a => a['Deal Type']), true);
-  buildMs('ms-entity', announcements.map(a => a._entityType));
-  buildMs('ms-lead',   announcements.map(a => a._lead), true);
-  buildMs('ms-impact', ['High','Medium','Low']);
-
-  // States — only US states
-  const states = [...new Set(
-    announcements.filter(a => a._isUS && a._state && a._state !== 'TBD' && a._state !== '').map(a => a._state)
-  )].sort();
-  buildMs('ms-state', states);
-
-  ['f-date-from','f-date-to'].forEach(id => {
-    document.getElementById(id).addEventListener('change', renderFeed);
-    document.getElementById(id).addEventListener('input', renderFeed);
-  });
-}
-
-// ── KPI UPDATE ────────────────────────────────────────────────────────────
-function updateKPIs(data) {
-  // Capital — stored in USD millions, display in billions
-  const totalCapMill = data.reduce((s, a) => s + (a._capUSD || 0), 0);
-  const { value: capVal, label: capLabel } = fmtCapital(totalCapMill);
-  document.getElementById('kpi-capital').textContent = capVal;
-  document.getElementById('kpi-capital-sub').textContent = capLabel;
-
-  // Capacity from linked projects (dedupe by project ID)
-  const projIds = new Set(data.map(a => a['Project ID']).filter(Boolean));
-  let totalGW = 0;
-  projIds.forEach(pid => {
-    const proj = projectMap[pid];
-    if (!proj) return;
-    const cap = parseFloat(proj['Total Capacity']) || 0;
-    const unit = proj['Capacity Unit'] || 'GW';
-    if (unit === 'MW') totalGW += cap / 1000;
-    else if (unit === 'TW') totalGW += cap * 1000;
-    else totalGW += cap;
-  });
-  document.getElementById('kpi-capacity').textContent = totalGW > 0 ? totalGW.toFixed(1) : '—';
-
-  // Static counts (not filter-dependent)
-  document.getElementById('kpi-programs').textContent = programs.length;
-  document.getElementById('kpi-projects').textContent = projects.length;
-  document.getElementById('kpi-reactors').textContent = reactors.length;
-
-  // Announcements
-  document.getElementById('kpi-total').textContent = data.length;
-  document.getElementById('kpi-total-sub').textContent = data.length === announcements.length ? 'total tracked' : 'in current filter';
-
-  // Significance breakdown
-  const sigCounts = { Deployment:0, Financing:0, Offtake:0, 'Market development':0, Signaling:0, 'Policy / Regulatory':0 };
-  data.forEach(a => { if (sigCounts[a.Significance] !== undefined) sigCounts[a.Significance]++; });
-  document.getElementById('ks-deploy').textContent  = sigCounts['Deployment'];
-  document.getElementById('ks-finance').textContent = sigCounts['Financing'];
-  document.getElementById('ks-offtake').textContent = sigCounts['Offtake'];
-  document.getElementById('ks-market').textContent  = sigCounts['Market development'];
-  document.getElementById('ks-signal').textContent  = sigCounts['Signaling'];
-  document.getElementById('ks-policy').textContent  = sigCounts['Policy / Regulatory'];
-}
-
-// Capital is stored in USD millions — display in appropriate scale with clear label
-function fmtCapital(usdMillions) {
-  if (!usdMillions || usdMillions === 0) return { value: '—', label: 'USD billions' };
-  const billions = usdMillions / 1000;
-  if (billions >= 1000) {
-    return { value: (billions / 1000).toFixed(1) + 'T', label: 'USD trillions' };
-  }
-  if (billions >= 1) {
-    return { value: billions.toFixed(1) + 'B', label: 'USD billions' };
-  }
-  return { value: Math.round(usdMillions).toLocaleString() + 'M', label: 'USD millions' };
-}
-
-// ── SORT ──────────────────────────────────────────────────────────────────
-function sortBy(col) {
-  if (sortCol === col) sortDir *= -1;
-  else { sortCol = col; sortDir = -1; }
-  document.querySelectorAll('.col-head').forEach(h => {
-    h.classList.remove('sorted');
-    h.querySelector('.sort-arrow').textContent = '↕';
-  });
-  const el = document.querySelector(`.col-head[data-col="${col}"]`);
-  if (el) { el.classList.add('sorted'); el.querySelector('.sort-arrow').textContent = sortDir === -1 ? '↓' : '↑'; }
-  renderFeed();
-}
-
-// ── RENDER FEED ───────────────────────────────────────────────────────────
-function renderFeed() {
-  const fSig    = getMsVals('ms-sig');
-  const fType   = getMsVals('ms-type');
-  const fEntity = getMsVals('ms-entity');
-  const fState  = getMsVals('ms-state');
-  const fImpact = getMsVals('ms-impact');
-  const fLead   = getMsVals('ms-lead');
-  const fFrom   = document.getElementById('f-date-from').value;
-  const fTo     = document.getElementById('f-date-to').value;
-  const fReview = document.getElementById('f-review').checked;
-  const fUSOnly = document.getElementById('f-us-only').checked;
-
-  filtered = announcements.filter(a => {
-    if (fSig.size    && !fSig.has(a['Significance']))    return false;
-    if (fType.size   && !fType.has(a['Deal Type']))      return false;
-    if (fEntity.size && !fEntity.has(a._entityType))     return false;
-    if (fState.size  && !fState.has(a._state))           return false;
-    if (fImpact.size && !fImpact.has(a['Impact']))       return false;
-    if (fLead.size   && !fLead.has(a._lead))             return false;
-    if (fReview && a['Needs Review'] !== 'Yes')          return false;
-    if (fUSOnly && !a._isUS)                             return false;
-    const ts = parseDate(a['Announcement Date']);
-    if (fFrom && ts && ts < parseDate(fFrom)) return false;
-    if (fTo   && ts && ts > parseDate(fTo))   return false;
-    return true;
-  });
-
-  // Sort
-  filtered.sort((a, b) => {
-    let va, vb;
-    switch(sortCol) {
-      case 'date':    va = parseDate(a['Announcement Date']); vb = parseDate(b['Announcement Date']); break;
-      case 'type':    va = a['Deal Type']||'';    vb = b['Deal Type']||'';    break;
-      case 'sig':     va = a['Significance']||''; vb = b['Significance']||''; break;
-      case 'summary': va = a['Deal Summary']||''; vb = b['Deal Summary']||''; break;
-      case 'entity':  va = a._entityType||'';     vb = b._entityType||'';     break;
-      case 'capital': va = a._capUSD||0;           vb = b._capUSD||0;          break;
-      case 'impact':  const imp = {High:3,Medium:2,Low:1}; va = imp[a.Impact]||0; vb = imp[b.Impact]||0; break;
-      default:        va = 0; vb = 0;
-    }
-    if (va < vb) return sortDir;
-    if (va > vb) return -sortDir;
-    return 0;
-  });
-
-  updateKPIs(filtered);
-  document.getElementById('table-count').innerHTML = `Showing <strong style="color:#0a1828">${filtered.length}</strong> of ${announcements.length} announcements`;
-
-  const body = document.getElementById('table-body');
-  if (!filtered.length) {
-    body.innerHTML = `<div class="empty">No results match the current filters.</div>`;
-    return;
-  }
-
-  const grid = '90px 110px 1fr 1.8fr 110px 110px 80px 36px';
-  body.innerHTML = filtered.map((a, i) => {
-    const capStr = a['Capital Value (low)']
-      ? `${parseFloat(a['Capital Value (low)']).toLocaleString()} ${a['Capital Unit']||''}`.trim()
-      : '—';
-    const linkedName = a._linkedName ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">${a._linkedName}</div>` : '';
-    const intlFlag = !a._isUS ? `<span class="intl-flag">INTL</span>` : '';
-    const reviewFlag = a['Needs Review'] === 'Yes' ? reviewBadge() : '';
-    return `<div class="trow" style="--tgrid:${grid}">
-      <span class="cell-date">${fmtDateShort(a['Announcement Date'])}</span>
-      <span class="cell" style="font-size:12px">${a['Deal Type']||'—'}</span>
-      <span class="cell">${sigBadge(a['Significance'])}</span>
-      <div class="cell-summary">
-        <button class="lbtn" onclick="openDealModal(${i})">${(a['Deal Summary']||'').slice(0,120)}${(a['Deal Summary']||'').length>120?'…':''}</button>
-        ${linkedName}
-      </div>
-      <div class="cell">
-        <div style="font-size:12px;font-weight:600;color:var(--slate)">${a._lead||'—'}${intlFlag}</div>
-        <div style="font-size:11px;color:var(--muted)">${a._entityType||''}</div>
-      </div>
-      <span class="cell" style="font-size:12px">${capStr}</span>
-      <span class="cell">${impactBadge(a['Impact'])}</span>
-      <span class="cell">${a['Source URL'] ? `<a href="${a['Source URL']}" target="_blank" rel="noreferrer" class="cell-link" title="Source">↗</a>` : ''}</span>
-    </div>`;
-  }).join('');
-}
-
-function resetFilters() {
-  ['ms-sig','ms-type','ms-entity','ms-lead','ms-state','ms-impact'].forEach(id => {
-    if (msState[id]) msState[id].clear();
-    updateMsTrigger(id);
-    // Uncheck all checkboxes in the dropdown
-    document.querySelectorAll(`#${id} .ms-option input`).forEach(cb => cb.checked = false);
-    const allCb = document.querySelector(`#${id}-all`);
-    if (allCb) allCb.checked = true;
-  });
-  document.getElementById('f-date-from').value = '';
-  document.getElementById('f-date-to').value   = '';
-  document.getElementById('f-review').checked  = false;
-  document.getElementById('f-us-only').checked = true;
-  renderFeed();
-}
-
-// ── MODAL ─────────────────────────────────────────────────────────────────
-function drow(label, val) {
-  if (!val || val === '—') return '';
-  return `<div class="drow"><span class="drow-label">${label}</span><span class="drow-val">${val}</span></div>`;
-}
-function openDealModal(idx) {
-  const a = filtered[idx];
-  document.getElementById('modal-tag').textContent = a['Deal Type'] || 'Announcement';
-  document.getElementById('modal-title').textContent = a['Deal Summary'] || 'Deal Detail';
-  let body = '';
-  body += drow('Deal ID',     a['Deal ID']);
-  body += drow('Date',        fmtDate(a['Announcement Date']));
-  body += drow('Significance',a['Significance']);
-  body += drow('Impact',      a['Impact']);
-  body += drow('Partners',    a['Partners']);
-  if (a._project) {
-    body += drow('Project',   a._project['Project Name']);
-    body += drow('Site',      a._project['Site Name']);
-    body += drow('State',     a._project['State']);
-    body += drow('Technology',a._project['Reactor Technology']);
-  }
-  if (a._program && !a._project) {
-    body += drow('Program',   a._program['Program Name']);
-    body += drow('Lead Entity',a._program['Lead Entity']);
-  }
-  if (a['Capital Value (low)']) {
-    const capType = a['Value Type'] ? `(${a['Value Type']})` : '';
-    body += drow('Capital', `${parseFloat(a['Capital Value (low)']).toLocaleString()} ${a['Capital Unit']||''} ${capType}`.trim());
-  }
-  if (a['USD Val low (calc.)']) {
-    body += drow('USD equiv.', `$${parseFloat(a['USD Val low (calc.)']).toLocaleString()}M`);
-  }
-  body += drow('Capital Source', a['Capital Source']);
-  body += drow('Confidence',  a['Confidence']);
-  body += drow('Needs Review',a['Needs Review']);
-  document.getElementById('modal-body').innerHTML = body;
-  if (a['Source URL']) {
-    document.getElementById('modal-body').innerHTML += `<a href="${a['Source URL']}" target="_blank" rel="noreferrer" class="modal-link">View source article →</a>`;
-  }
-  document.getElementById('modal-overlay').classList.add('open');
-}
-function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
-document.getElementById('modal-overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-
-// ── DOWNLOAD EXCEL ────────────────────────────────────────────────────────
-function downloadExcel() {
-  if (!filtered.length) return;
-  const cols = ['Deal ID','Announcement Date','Deal Type','Significance','Impact','Deal Summary','Partners','Capital Value (low)','Capital Unit','Value Type','Capital Source','USD Val low (calc.)','Source URL','Confidence','Needs Review'];
-  const extra = ['_lead','_entityType','_state','_linkedName'];
-  const headers = [...cols, 'Primary Lead','Lead Entity Type','State / Location','Linked Entity'];
-  const rows = filtered.map(a => [...cols.map(c => a[c]||''), a._lead||'', a._entityType||'', a._state||'', a._linkedName||'']);
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Announcements');
-  XLSX.writeFile(wb, `nuclear-deals-${new Date().toISOString().slice(0,10)}.xlsx`);
-}
-
-// ── ENTITY EXPLORER ───────────────────────────────────────────────────────
-function setMode(mode) {
-  explorerMode = mode;
-  document.querySelectorAll('.mode-tab').forEach((t,i) => t.classList.toggle('active', ['program','project','reactor'][i] === mode));
-  const labels = { program: 'Select a Program', project: 'Select a Project', reactor: 'Select a Reactor' };
-  document.getElementById('explorer-select-label').textContent = labels[mode];
-  const sel = document.getElementById('explorer-select');
-  sel.innerHTML = '<option value="">— choose one —</option>';
-
-  let items = [];
-  if (mode === 'program') items = programs.map(p => ({ id: p['Program ID'], name: p['Program Name'], sub: p['Program Type'], meta: p['Lead Entity'], status: p['Status'] }));
-  if (mode === 'project') items = projects.map(p => ({ id: p['Project ID'], name: p['Project Name'], sub: p['Project Type'], meta: `${p['Primary Lead']||''} · ${p['State']||''}`, status: p['Status'], tech: p['Reactor Technology'] }));
-  if (mode === 'reactor') items = reactors.map(r => {
-    const proj = r['Project ID (opt.)'] ? projectMap[r['Project ID (opt.)']] : null;
-    return { id: r['Reactor ID'], name: r['Unit Name / Number'], sub: r['Technology'], meta: proj ? proj['Project Name'] : r['Site Name']||'Standalone', status: r['Status'] };
-  });
-
-  items.sort((a,b) => a.name.localeCompare(b.name));
-  sel.innerHTML += items.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
-
-  // Render full clickable entity list
-  renderEntityList(items, mode);
-
-  document.getElementById('explorer-content').innerHTML = `
-    <div class="no-selection">
-      <div class="no-selection-icon">🔍</div>
-      <div class="no-selection-text">Select a ${mode} above or click a card below to explore its announcement timeline.</div>
-    </div>`;
-}
-
-function renderEntityList(items, mode) {
-  const listEl = document.getElementById('entity-list');
-  if (!items.length) { listEl.innerHTML = ''; return; }
-
-  const dealCounts = {};
-  items.forEach(item => {
-    let count = 0;
-    if (mode === 'program') count = announcements.filter(a => a['Program ID'] === item.id || (a['Project ID'] && projectMap[a['Project ID']]?.['Program ID (opt.)'] === item.id)).length;
-    if (mode === 'project') count = announcements.filter(a => a['Project ID'] === item.id).length;
-    if (mode === 'reactor') count = announcements.filter(a => a['Reactor ID'] === item.id).length;
-    dealCounts[item.id] = count;
-  });
-
-  listEl.innerHTML = `
-    <div style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:20px 24px;box-shadow:0 1px 4px rgba(0,0,0,0.04)">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.14em;color:var(--muted);font-weight:700;margin-bottom:14px">${items.length} ${mode}${items.length!==1?'s':''}</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">
-        ${items.map(item => `
-          <div class="proj-card" onclick="selectEntity('${item.id}')" style="cursor:pointer">
-            <div class="proj-card-name" style="font-size:13px">${item.name}</div>
-            <div class="proj-card-meta" style="margin-top:5px">
-              ${item.sub ? `<span class="badge b-entity" style="font-size:10px">${item.sub}</span>` : ''}
-              ${item.status === 'Active' ? `<span class="badge b-deployment" style="font-size:10px">Active</span>` : item.status ? `<span class="badge b-low" style="font-size:10px">${item.status}</span>` : ''}
-            </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
-              <span style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${item.meta||''}</span>
-              <span style="font-size:11px;color:var(--blue);font-weight:700;white-space:nowrap;margin-left:6px">${dealCounts[item.id]} deal${dealCounts[item.id]!==1?'s':''}</span>
-            </div>
-          </div>`).join('')}
-      </div>
-    </div>`;
-}
-
-function selectEntity(id, mode) {
-  if (mode) setMode(mode);
-  document.getElementById('explorer-select').value = id;
-  loadEntity();
-  // Smooth scroll to detail
-  setTimeout(() => document.getElementById('explorer-content').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-}
-
-function loadEntity() {
-  const id = document.getElementById('explorer-select').value;
-  if (!id) {
-    document.getElementById('explorer-content').innerHTML = `<div class="no-selection"><div class="no-selection-icon">🔍</div><div class="no-selection-text">Select an entity above.</div></div>`;
-    return;
-  }
-
-  if (explorerMode === 'program') renderProgramView(id);
-  else if (explorerMode === 'project') renderProjectView(id);
-  else renderReactorView(id);
-}
-
-function renderProgramView(progId) {
-  const prog = programMap[progId];
-  if (!prog) return;
-  const linkedProjects = projects.filter(p => p['Program ID (opt.)'] === progId);
-  const linkedDeals = announcements.filter(a => a['Program ID'] === progId || linkedProjects.some(p => p['Project ID'] === a['Project ID']));
-  const sortedDeals = [...linkedDeals].sort((a,b) => parseDate(b['Announcement Date']) - parseDate(a['Announcement Date']));
-
-  let html = `
-    <div class="entity-detail">
-      <div class="entity-header">
-        <div class="entity-header-left">
-          <h2>${prog['Program Name']}</h2>
-          <div class="entity-meta">
-            <span class="badge b-entity">${prog['Program Type']||''}</span>
-            <span class="badge b-entity">Lead: ${prog['Lead Entity']||''}</span>
-            <span class="badge ${prog['Status']==='Active'?'b-deployment':'b-low'}">${prog['Status']||''}</span>
-          </div>
-          ${prog['Description'] ? `<p style="font-size:13px;color:var(--muted);margin-top:10px;max-width:600px;line-height:1.6">${prog['Description']}</p>` : ''}
-        </div>
-        <div class="entity-stat-row">
-          <div class="entity-stat"><div class="entity-stat-n">${linkedProjects.length}</div><div class="entity-stat-l">Projects</div></div>
-          <div class="entity-stat"><div class="entity-stat-n">${sortedDeals.length}</div><div class="entity-stat-l">Deals</div></div>
-        </div>
-      </div>`;
-
-  if (linkedProjects.length) {
-    html += `<div class="timeline-header">Linked Projects</div>
-      <div class="child-projects">
-        ${linkedProjects.map(p => `
-          <div class="proj-card" onclick="document.getElementById('explorer-select').value='${p['Project ID']}';setMode('project');loadEntity()">
-            <div class="proj-card-name">${p['Project Name']}</div>
-            <div class="proj-card-meta">
-              <span class="badge b-entity" style="font-size:10px">${p['Project Type']||''}</span>
-              <span class="badge b-entity" style="font-size:10px">${p['State']||''}</span>
-            </div>
-            <div class="proj-card-stat">${p['Primary Lead']||''} · ${p['Reactor Technology']||''}</div>
-          </div>`).join('')}
-      </div>`;
-  }
-
-  html += renderTimeline(sortedDeals) + '</div>';
-  document.getElementById('explorer-content').innerHTML = html;
-}
-
-function renderProjectView(projId) {
-  const proj = projectMap[projId];
-  if (!proj) return;
-  const linkedDeals = announcements.filter(a => a['Project ID'] === projId);
-  const linkedReactors = reactors.filter(r => r['Project ID (opt.)'] === projId);
-  const sortedDeals = [...linkedDeals].sort((a,b) => parseDate(b['Announcement Date']) - parseDate(a['Announcement Date']));
-  const prog = proj['Program ID (opt.)'] ? programMap[proj['Program ID (opt.)']] : null;
-
-  const capNum = parseFloat(proj['Total Capacity'])||0;
-  const capUnit = proj['Capacity Unit']||'GW';
-  const capGW = capUnit==='MW' ? capNum/1000 : capUnit==='TW' ? capNum*1000 : capNum;
-
-  let html = `
-    <div class="entity-detail">
-      <div class="entity-header">
-        <div class="entity-header-left">
-          <h2>${proj['Project Name']}</h2>
-          <div class="entity-meta">
-            <span class="badge b-entity">${proj['Lead Entity Type']||''}</span>
-            <span class="badge b-entity">${proj['Project Type']||''}</span>
-            <span class="badge b-entity">${proj['State']||''}</span>
-            <span class="badge ${proj['Status']==='Active'?'b-deployment':'b-low'}">${proj['Status']||''}</span>
-          </div>
-          <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--muted)">
-            ${proj['Primary Lead'] ? `<span><strong style="color:var(--slate)">Lead:</strong> ${proj['Primary Lead']}</span>` : ''}
-            ${proj['Co-leads']     ? `<span><strong style="color:var(--slate)">Co-leads:</strong> ${proj['Co-leads']}</span>` : ''}
-            ${proj['Site Name']    ? `<span><strong style="color:var(--slate)">Site:</strong> ${proj['Site Name']}</span>` : ''}
-            ${proj['Reactor Technology'] ? `<span><strong style="color:var(--slate)">Technology:</strong> ${proj['Reactor Technology']}</span>` : ''}
-            ${proj['Target Operation'] ? `<span><strong style="color:var(--slate)">Target:</strong> ${proj['Target Operation']}</span>` : ''}
-            ${prog ? `<span><strong style="color:var(--slate)">Program:</strong> ${prog['Program Name']}</span>` : ''}
-          </div>
-          ${proj['NRC Status'] ? `<div style="font-size:12px;color:var(--muted);margin-top:6px">NRC: ${proj['NRC Status']}</div>` : ''}
-        </div>
-        <div class="entity-stat-row">
-          ${capGW > 0 ? `<div class="entity-stat"><div class="entity-stat-n">${capGW.toFixed(1)}</div><div class="entity-stat-l">GW capacity</div></div>` : ''}
-          <div class="entity-stat"><div class="entity-stat-n">${sortedDeals.length}</div><div class="entity-stat-l">Deals</div></div>
-          ${linkedReactors.length ? `<div class="entity-stat"><div class="entity-stat-n">${linkedReactors.length}</div><div class="entity-stat-l">Reactors</div></div>` : ''}
-        </div>
-      </div>`;
-
-  html += renderTimeline(sortedDeals) + '</div>';
-  document.getElementById('explorer-content').innerHTML = html;
-}
-
-function renderReactorView(reacId) {
-  const reac = reactorMap[reacId];
-  if (!reac) return;
-  const linkedDeals = announcements.filter(a => a['Reactor ID'] === reacId);
-  const proj = reac['Project ID (opt.)'] ? projectMap[reac['Project ID (opt.)']] : null;
-  const prog = proj?.['Program ID (opt.)'] ? programMap[proj['Program ID (opt.)']] : null;
-  const sortedDeals = [...linkedDeals].sort((a,b) => parseDate(b['Announcement Date']) - parseDate(a['Announcement Date']));
-
-  const capNum = parseFloat(reac['Capacity'])||0;
-  const capUnit = reac['Capacity Unit']||'MW';
-  const capGW = capUnit==='MW' ? capNum/1000 : capUnit==='TW' ? capNum*1000 : capNum;
-
-  // Build hierarchy breadcrumb
-  let hierarchyHtml = '';
-  if (prog || proj) {
-    hierarchyHtml = `<div style="background:#f8fbff;border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin:0 28px 0">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);font-weight:700;margin-bottom:12px">Connected to</div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:stretch">`;
-
-    if (proj) {
-      const projDeals = announcements.filter(a => a['Project ID'] === proj['Project ID']).length;
-      const projCapNum = parseFloat(proj['Total Capacity'])||0;
-      const projCapUnit = proj['Capacity Unit']||'GW';
-      const projCapGW = projCapUnit==='MW' ? projCapNum/1000 : projCapUnit==='TW' ? projCapNum*1000 : projCapNum;
-      hierarchyHtml += `
-        <div class="proj-card" style="flex:1;min-width:200px;cursor:pointer" onclick="selectEntity('${proj['Project ID']}', 'project')">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--blue);font-weight:700;margin-bottom:6px">Parent Project</div>
-          <div class="proj-card-name">${proj['Project Name']}</div>
-          <div class="proj-card-meta" style="margin-top:6px">
-            <span class="badge b-entity" style="font-size:10px">${proj['Project Type']||''}</span>
-            <span class="badge b-entity" style="font-size:10px">${proj['State']||''}</span>
-          </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:6px">${proj['Primary Lead']||''} · ${proj['Reactor Technology']||''}</div>
-          <div style="display:flex;gap:12px;margin-top:8px">
-            ${projCapGW > 0 ? `<span style="font-size:11px;color:var(--slate)"><strong>${projCapGW.toFixed(1)} GW</strong> total</span>` : ''}
-            <span style="font-size:11px;color:var(--blue);font-weight:700">${projDeals} deals →</span>
-          </div>
-        </div>`;
-    }
-
-    if (prog) {
-      const progDeals = announcements.filter(a => a['Program ID'] === prog['Program ID']).length;
-      const progProjects = projects.filter(p => p['Program ID (opt.)'] === prog['Program ID']).length;
-      hierarchyHtml += `
-        <div class="proj-card" style="flex:1;min-width:200px;cursor:pointer" onclick="selectEntity('${prog['Program ID']}', 'program')">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--c-market);font-weight:700;margin-bottom:6px">Parent Program</div>
-          <div class="proj-card-name">${prog['Program Name']}</div>
-          <div class="proj-card-meta" style="margin-top:6px">
-            <span class="badge b-entity" style="font-size:10px">${prog['Program Type']||''}</span>
-            <span class="badge ${prog['Status']==='Active'?'b-deployment':'b-low'}" style="font-size:10px">${prog['Status']||''}</span>
-          </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:6px">Lead: ${prog['Lead Entity']||''}</div>
-          <div style="display:flex;gap:12px;margin-top:8px">
-            <span style="font-size:11px;color:var(--slate)"><strong>${progProjects}</strong> projects</span>
-            <span style="font-size:11px;color:var(--blue);font-weight:700">${progDeals} program deals →</span>
-          </div>
-        </div>`;
-    }
-
-    hierarchyHtml += `</div></div>`;
-  }
-
-  let html = `
-    <div class="entity-detail">
-      <div class="entity-header">
-        <div class="entity-header-left">
-          <h2>${reac['Unit Name / Number']}</h2>
-          <div class="entity-meta">
-            <span class="badge b-entity">${reac['Technology']||''}</span>
-            ${reac['State'] ? `<span class="badge b-entity">${reac['State']}</span>` : ''}
-            <span class="badge ${reac['Status']==='Active'?'b-deployment':'b-low'}">${reac['Status']||''}</span>
-          </div>
-          <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--muted);margin-top:10px">
-            ${reac['Site Name'] ? `<span><strong style="color:var(--slate)">Site:</strong> ${reac['Site Name']}</span>` : ''}
-            ${reac['Target Operation'] ? `<span><strong style="color:var(--slate)">Target:</strong> ${reac['Target Operation']}</span>` : ''}
-          </div>
-        </div>
-        <div class="entity-stat-row">
-          ${capGW > 0 ? `<div class="entity-stat"><div class="entity-stat-n">${capGW.toFixed(2)}</div><div class="entity-stat-l">GW capacity</div></div>` : ''}
-          <div class="entity-stat"><div class="entity-stat-n">${sortedDeals.length}</div><div class="entity-stat-l">Reactor deals</div></div>
-        </div>
-      </div>
-      ${hierarchyHtml}
-      ${renderTimeline(sortedDeals)}
-    </div>`;
-
-  document.getElementById('explorer-content').innerHTML = html;
-}
-
-function renderTimeline(deals) {
-  if (!deals.length) return `<div class="timeline-header">Announcement Timeline</div><div class="empty">No announcements linked to this entity yet.</div>`;
-  return `
-    <div class="timeline-header">Announcement Timeline — ${deals.length} deal${deals.length!==1?'s':''}</div>
-    <div class="timeline-section">
-      ${deals.map((a, i) => {
-        const color = SIG_COLOR[a['Significance']] || '#888';
-        const isLast = i === deals.length - 1;
-        return `<div class="timeline-item">
-          <div class="timeline-dot-col">
-            <div class="timeline-dot" style="background:${color}"></div>
-            ${!isLast ? '<div class="timeline-line"></div>' : ''}
-          </div>
-          <div class="timeline-content">
-            <div class="timeline-date">${fmtDate(a['Announcement Date'])}</div>
-            <div class="timeline-summary">${a['Deal Summary']||'—'}</div>
-            <div class="timeline-meta">
-              ${sigBadge(a['Significance'])}
-              ${impactBadge(a['Impact'])}
-              <span class="badge b-entity" style="font-size:11px">${a['Deal Type']||''}</span>
-              ${a['Capital Value (low)'] ? `<span class="badge b-low" style="font-size:11px">${parseFloat(a['Capital Value (low)']).toLocaleString()} ${a['Capital Unit']||''}</span>` : ''}
-              ${a['Needs Review']==='Yes' ? reviewBadge() : ''}
-              ${a['Source URL'] ? `<a href="${a['Source URL']}" target="_blank" rel="noreferrer" class="cell-link" style="margin-left:4px">↗ source</a>` : ''}
-            </div>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
-}
-
-// ── LOAD DATA ─────────────────────────────────────────────────────────────
-async function fetchCSV(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-  return parseCSV(await res.text());
-}
-
-async function loadData() {
-  try {
-    [programs, projects, reactors, announcements] = await Promise.all([
-      fetchCSV(URLS.programs), fetchCSV(URLS.projects),
-      fetchCSV(URLS.reactors), fetchCSV(URLS.announcements),
-    ]);
-
-    // Build lookup maps
-    programs.forEach(p      => { if (p['Program ID'])              programMap[p['Program ID']]              = p; });
-    projects.forEach(p      => { if (p['Project ID'])              projectMap[p['Project ID']]              = p; });
-    reactors.forEach(r      => { if (r['Reactor ID'])              reactorMap[r['Reactor ID']]              = r; });
-
-    enrichAnnouncements();
-
-    // Review badge
-    const reviewCount = announcements.filter(a => a['Needs Review'] === 'Yes').length;
-    const badge = document.getElementById('review-badge');
-    if (reviewCount > 0) { badge.textContent = `${reviewCount} needs review`; badge.classList.add('show'); }
-
-    buildFilters();
-    renderFeed();
-    setMode('program');
-
-  } catch(err) {
-    document.getElementById('table-body').innerHTML = `<div class="error-msg">❌ Could not load data: ${err.message}<br><br>Ensure the Google Sheet tabs are published to web as CSV.</div>`;
-    document.getElementById('table-count').textContent = 'Error loading data';
-  }
-}
-
-loadData();
-</script>
-</body>
-</html>
+def to_usd_millions(value, unit):
+    """Convert capital value to USD millions. Returns None if not possible."""
+    if value is None or not unit:
+        return None
+    rate = FX_TO_USD.get(unit)
+    if rate is None:
+        return None
+    return round(float(value) * rate, 2)
+
+
+# ─── MAIN RUN ─────────────────────────────────────────────────────────────────
+
+def run():
+    today = datetime.date.today().isoformat()
+    now   = datetime.datetime.utcnow().isoformat()
+
+    print(f"\n{'='*65}")
+    print(f"Nuclear Deal Scraper v2 — {today}")
+    print(f"{'='*65}\n")
+
+    # ── Clients ──────────────────────────────────────────────────────
+    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    gc     = get_gsheet_client()
+    sheet  = gc.open_by_key(os.environ["GOOGLE_SHEET_ID"])
+
+    # ── Ensure operational tabs exist ────────────────────────────────
+    ensure_tab(sheet, TAB_SEEN,   SEEN_COLS)
+    ensure_tab(sheet, TAB_REVIEW, REVIEW_COLS)
+
+    # ── Load reference data ──────────────────────────────────────────
+    print("Loading reference data...")
+    ref = load_reference_data(sheet)
+    seen_hashes = load_seen_hashes(sheet)
+    print(f"  {len(ref['program_lookup'])} programs, {len(ref['project_lookup'])} projects, "
+          f"{len(ref['reactor_lookup'])} reactors, {len(ref['fingerprints'])} existing deals\n")
+
+    # ── Scrape feeds ─────────────────────────────────────────────────
+    print("Scraping feeds...")
+    candidates = scrape_feeds()
+    print(f"\n  {len(candidates)} total candidates after dedup\n")
+
+    # ── Process articles ─────────────────────────────────────────────
+    new_seen     = []
+    new_ann      = []
+    review_rows  = []
+    review_id    = 1
+    deal_counter = 0
+    skipped      = 0
+    duplicates   = 0
+
+    for article in candidates:
+        h = entry_hash(article["title"], article["link"])
+
+        # Skip already-processed articles
+        if h in seen_hashes:
+            continue
+
+        print(f"  ⟳ {article['title'][:80]}")
+
+        # ── Fetch full article body ───────────────────────────────
+        body = fetch_article_text(article["link"])
+        article["body"] = body or article["summary"]
+
+        # ── Pass 1: include/exclude ───────────────────────────────
+        include, reason = pass1_include(client, article["title"], article["body"])
+        if not include:
+            print(f"    ↷ Excluded: {reason}")
+            new_seen.append({
+                "hash": h, "title": article["title"],
+                "url": article["link"], "scraped_at": now
+            })
+            skipped += 1
+            continue
+
+        print(f"    ✓ Included: {reason}")
+
+        # ── Date filter ───────────────────────────────────────────
+        year_str = article.get("date", "")[:4]
+        try:
+            if year_str and int(year_str) < MIN_YEAR:
+                print(f"    ↷ Too old ({year_str})")
+                new_seen.append({
+                    "hash": h, "title": article["title"],
+                    "url": article["link"], "scraped_at": now
+                })
+                continue
+        except Exception:
+            pass
+
+        # ── Pass 2: extract structured fields ────────────────────
+        result = pass2_extract(client, article, ref)
+
+        # If Claude returned a list instead of a dict, unwrap or discard
+        if isinstance(result, list):
+            result = result[0] if result and isinstance(result[0], dict) else None
+
+        # Escalate to stronger model if low confidence
+        if result and result.get("confidence") == "Low":
+            print(f"    ↑ Escalating to {ESCALATION_MODEL} (low confidence)")
+            result_escalated = pass2_extract(client, article, ref, model=ESCALATION_MODEL)
+            if isinstance(result_escalated, list):
+                result_escalated = result_escalated[0] if result_escalated and isinstance(result_escalated[0], dict) else None
+            if result_escalated:
+                result = result_escalated
+
+        if not result:
+            print("    ✗ Extraction failed — sending to Review")
+            review_rows.append({
+                "Review ID":     f"REV-{review_id:03d}",
+                "Scraped At":    now,
+                "Article Title": article["title"],
+                "Article URL":   article["link"],
+                "Reason":        "extraction failed",
+                "Raw Extraction": "",
+            })
+            review_id += 1
+            new_seen.append({
+                "hash": h, "title": article["title"],
+                "url": article["link"], "scraped_at": now
+            })
+            continue
+
+        # ── Duplicate check ───────────────────────────────────────
+        if result.get("is_duplicate"):
+            print(f"    ≡ Duplicate: {result.get('duplicate_reason','')}")
+            duplicates += 1
+            new_seen.append({
+                "hash": h, "title": article["title"],
+                "url": article["link"], "scraped_at": now
+            })
+            continue
+
+        # ── Assign Deal ID ────────────────────────────────────────
+        deal_counter += 1
+        deal_id = next_id(sheet, TAB_ANNOUNCEMENTS, "DEAL")
+
+        # ── USD conversion ────────────────────────────────────────
+        cap_low  = result.get("capital_value_low")
+        cap_high = result.get("capital_value_high")
+        cap_unit = result.get("capital_unit")
+        usd_low  = to_usd_millions(cap_low, cap_unit)
+        usd_high = to_usd_millions(cap_high, cap_unit)
+
+        # ── Build announcement row ────────────────────────────────
+        needs_review = result.get("needs_review", False) or result.get("confidence") == "Low"
+
+        ann = {
+            "Deal ID":               deal_id,
+            "Reactor ID":            result.get("reactor_id") or "",
+            "Project ID":            result.get("project_id") or "",
+            "Program ID":            result.get("program_id") or "",
+            "Deal Type":             result.get("deal_type", ""),
+            "Significance":          result.get("significance", ""),
+            "Impact":                result.get("impact", ""),
+            "Announcement Date":     result.get("announcement_date", article.get("date", "")),
+            "Partners":              result.get("partners", ""),
+            "Deal Summary":          result.get("deal_summary", ""),
+            "Capital Value (low)":   cap_low if cap_low is not None else "",
+            "Capital Value (high)":  cap_high if cap_high is not None else "",
+            "Capital Unit":          cap_unit or "",
+            "Value Type":            result.get("value_type", "") or "",
+            "Capital Source":        result.get("capital_source", ""),
+            "USD Val low (calc.)":   usd_low if usd_low is not None else "",
+            "USD Val high (calc.)":  usd_high if usd_high is not None else "",
+            "Source URL":            article["link"],
+            "Confidence":            result.get("confidence", "Medium"),
+            "Needs Review":          "Yes" if needs_review else "No",
+        }
+        new_ann.append(ann)
+
+        # Update in-memory fingerprints so later articles in same run dedup correctly
+        fp = f"{ann['Project ID']}/{ann['Program ID']}/{ann['Deal Type']}/{ann['Deal Summary'][:80]}"
+        ref["fingerprints"].append(fp)
+
+        conf_icon = "🟡" if result.get("confidence") == "Medium" else ("🔴" if result.get("confidence") == "Low" else "🟢")
+        review_flag = " → REVIEW" if needs_review else ""
+        print(f"    ✚ {deal_id} | {ann['Deal Type']} | {ann['Significance']} | conf={ann['Confidence']} {conf_icon}{review_flag}")
+        print(f"      Project: {ann['Project ID'] or ann['Program ID'] or '⚠ unlinked'}")
+
+        # Mark as seen
+        new_seen.append({
+            "hash": h, "title": article["title"],
+            "url": article["link"], "scraped_at": now
+        })
+
+        # Low-confidence also gets a Review row for human inspection
+        if needs_review:
+            review_rows.append({
+                "Review ID":     f"REV-{review_id:03d}",
+                "Scraped At":    now,
+                "Article Title": article["title"],
+                "Article URL":   article["link"],
+                "Reason":        f"confidence={result.get('confidence')}; needs_review={result.get('needs_review')}",
+                "Raw Extraction": json.dumps(result),
+            })
+            review_id += 1
+
+        time.sleep(0.5)   # gentle rate limiting
+
+    # ── Batch write to Sheets ─────────────────────────────────────────
+    print(f"\n{'─'*65}")
+    print(f"Run summary:")
+    print(f"  Candidates processed : {len(candidates)}")
+    print(f"  Excluded (pass 1)    : {skipped}")
+    print(f"  Duplicates           : {duplicates}")
+    print(f"  New deals            : {len(new_ann)}")
+    print(f"  Sent to Review       : {len(review_rows)}")
+
+    if new_ann:
+        print(f"\nWriting {len(new_ann)} announcements to Sheet...")
+        append_rows_batch(sheet, TAB_ANNOUNCEMENTS, new_ann)
+        print("  Done.")
+
+    if review_rows:
+        print(f"Writing {len(review_rows)} review items...")
+        append_rows_batch(sheet, TAB_REVIEW, review_rows)
+        print("  Done.")
+
+    if new_seen:
+        print(f"Logging {len(new_seen)} seen hashes...")
+        append_rows_batch(sheet, TAB_SEEN, new_seen)
+        print("  Done.")
+
+    print(f"\n✓ Scraper complete — {today}\n")
+
+
+if __name__ == "__main__":
+    run()
