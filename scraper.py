@@ -138,12 +138,12 @@ FEEDS = [
     {"name": "Constellation IR",        "url": "https://ir.constellationenergy.com/news-releases/rss"},
     {"name": "Southern Company News",   "url": "https://www.southerncompany.com/news/rss"},
     # Tech / hyperscalers
-    {"name": "Google Blog",             "url": "https://blog.google/rss/"},
-    {"name": "Microsoft On the Issues", "url": "https://blogs.microsoft.com/on-the-issues/feed/"},
-    {"name": "Meta Newsroom",           "url": "https://about.fb.com/rss/"},
-    {"name": "Amazon About",            "url": "https://www.aboutamazon.com/news/rss"},
+    {"name": "Google Blog",             "url": "https://blog.google/rss/",              "nuclear_only": True},
+    {"name": "Microsoft On the Issues", "url": "https://blogs.microsoft.com/on-the-issues/feed/", "nuclear_only": True},
+    {"name": "Meta Newsroom",           "url": "https://about.fb.com/rss/",             "nuclear_only": True},
+    {"name": "Amazon About",            "url": "https://www.aboutamazon.com/news/rss",  "nuclear_only": True},
     # Finance
-    {"name": "Brookfield IR",           "url": "https://bam.brookfield.com/news-releases/rss"},
+    {"name": "Brookfield IR",           "url": "https://bam.brookfield.com/news-releases/rss", "nuclear_only": True},
 ]
 
 # Keywords that flag an article as a potential deal
@@ -155,6 +155,16 @@ DEAL_KEYWORDS = [
     "restart", "new build", "construction permit",
     "offtake", "signed", "announced", "selected",
     "smr", "small modular", "advanced reactor",
+]
+
+# Extra nuclear topic keywords used to pre-filter noisy broad-topic feeds
+# (feeds tagged nuclear_only=True must pass at least one of these)
+NUCLEAR_KEYWORDS = [
+    "nuclear", "reactor", "smr", "uranium", "fission", "fusion",
+    "atomic", "nrc", "doe nuclear", "advanced reactor", "small modular",
+    "natrium", "ap1000", "bwrx", "xe-100", "kairos", "terrapower",
+    "holtec", "oklo", "x-energy", "commonwealth fusion", "helion",
+    "palisades", "diablo", "three mile", "vogtle", "surry",
 ]
 
 
@@ -491,11 +501,17 @@ def scrape_feeds():
                 continue
             # Company newsrooms have fewer but more targeted entries — read all
             limit = feed_cfg.get("limit", 80)
+            nuclear_only = feed_cfg.get("nuclear_only", False)
             matched = 0
             for entry in feed.entries[:limit]:
                 title   = clean(entry.get("title", ""))
                 link    = entry.get("link", "")
                 summary = clean(BeautifulSoup(entry.get("summary", ""), "html.parser").get_text())
+                # For noisy broad-topic feeds, require a nuclear keyword first
+                if nuclear_only:
+                    text_lower = (title + " " + summary).lower()
+                    if not any(kw in text_lower for kw in NUCLEAR_KEYWORDS):
+                        continue
                 # Parse date
                 date = ""
                 if entry.get("published"):
@@ -586,6 +602,10 @@ def run():
     print("Scraping feeds...")
     candidates = scrape_feeds()
     print(f"\n  {len(candidates)} total candidates after dedup\n")
+
+    # ── Compute base Deal ID number once before loop ──────────────────
+    first_deal_id = next_id(sheet, TAB_ANNOUNCEMENTS, "DEAL")
+    base_deal_num = int(first_deal_id.split("-")[1]) - 1
 
     # ── Process articles ─────────────────────────────────────────────
     new_seen     = []
@@ -680,7 +700,7 @@ def run():
 
         # ── Assign Deal ID ────────────────────────────────────────
         deal_counter += 1
-        deal_id = next_id(sheet, TAB_ANNOUNCEMENTS, "DEAL")
+        deal_id = f"DEAL-{(base_deal_num + deal_counter):03d}"
 
         # ── USD conversion ────────────────────────────────────────
         cap_low  = result.get("capital_value_low")
