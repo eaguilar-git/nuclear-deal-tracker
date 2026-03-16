@@ -71,7 +71,7 @@ nav {
 .hero-sub { font-size: 15px; color: #a8c4e0; line-height: 1.7; max-width: 520px; margin-bottom: 32px; }
 
 /* ── KPI CARDS ── */
-.kpi-row { display: grid; grid-template-columns: repeat(6, 1fr) 2fr; gap: 12px; }
+.kpi-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
 .kpi-card {
   background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.13);
   border-radius: 10px; padding: 16px 20px; transition: background 0.15s;
@@ -182,15 +182,18 @@ nav {
 .tip-wrap { position: relative; }
 .tip-icon { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,0.2); color: rgba(255,255,255,0.7); font-size: 9px; font-weight: 700; cursor: help; margin-left: 5px; vertical-align: middle; flex-shrink: 0; }
 .tip-box {
-  position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 400;
+  position: absolute; top: calc(100% + 10px); left: 0; z-index: 400;
   background: #0a1828; color: #c8dff0; font-size: 12px; line-height: 1.6;
-  padding: 12px 14px; border-radius: 8px; width: 260px;
+  padding: 12px 14px; border-radius: 8px; width: 260px; max-width: calc(100vw - 80px);
   box-shadow: 0 8px 24px rgba(0,0,0,0.4); pointer-events: none;
-  opacity: 0; transform: translateY(4px); transition: opacity 0.15s, transform 0.15s;
+  opacity: 0; transform: translateY(-4px); transition: opacity 0.15s, transform 0.15s;
   font-family: 'Source Sans 3', sans-serif; font-weight: 400;
 }
-.tip-box::after { content: ''; position: absolute; top: 100%; left: 16px; border: 6px solid transparent; border-top-color: #0a1828; }
+.tip-box::before { content: ''; position: absolute; bottom: 100%; left: 16px; border: 6px solid transparent; border-bottom-color: #0a1828; }
 .tip-wrap:hover .tip-box { opacity: 1; transform: translateY(0); }
+/* Right-align variant for cards near right edge */
+.tip-right .tip-box { left: auto; right: 0; }
+.tip-right .tip-box::before { left: auto; right: 16px; }
 .tip-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--sky); margin-bottom: 6px; }
 .ms-wrap { position: relative; }
 .ms-wrap label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
@@ -366,29 +369,19 @@ nav {
           A <strong>Reactor</strong> is an individual reactor unit within a project — e.g. "Unit 1 (AP1000)" or "Pioneer Unit 1 (SMR-300)". Only multi-unit projects have separate reactor rows. Single-unit projects are tracked at the project level. Reactor-level deals are those tied to a specific unit rather than the project as a whole.
         </div>
       </div>
-      <div class="kpi-card tip-wrap">
+      <div class="kpi-card tip-wrap tip-right" style="cursor:pointer" onclick="openSigModal()">
         <div class="kpi-label">Announcements <span class="tip-icon">?</span></div>
         <div class="kpi-value" id="kpi-total">—</div>
-        <div class="kpi-sub" id="kpi-total-sub">total tracked</div>
+        <div class="kpi-sub" id="kpi-total-sub">click for breakdown</div>
         <div class="tip-box">
           <div class="tip-title">Significance Scale</div>
-          <strong style="color:#a8d5b8">Deployment</strong> — Concrete construction, licensing, or restart activity<br>
-          <strong style="color:#f5c08a">Financing</strong> — Capital commitment with a specific dollar amount<br>
-          <strong style="color:#90b8f0">Offtake</strong> — Binding or near-binding PPA or supply agreement<br>
-          <strong style="color:#d4a8e8">Market dev</strong> — Preorders, site options, feasibility studies with capital at risk<br>
-          <strong style="color:#90c8d8">Signaling</strong> — Non-binding MOUs and intent without committed capital<br>
-          <strong style="color:#c0c0c0">Policy/Reg</strong> — Government action, legislation, NRC decisions
-        </div>
-      </div>
-      <div class="kpi-card" style="grid-column: span 2">
-        <div class="kpi-label">By Significance</div>
-        <div class="kpi-sig-grid" id="kpi-sig-grid">
-          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-deploy">—</span><span class="kpi-sig-l">Deployment</span></div>
-          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-finance">—</span><span class="kpi-sig-l">Financing</span></div>
-          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-offtake">—</span><span class="kpi-sig-l">Offtake</span></div>
-          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-market">—</span><span class="kpi-sig-l">Market dev</span></div>
-          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-signal">—</span><span class="kpi-sig-l">Signaling</span></div>
-          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-policy">—</span><span class="kpi-sig-l">Policy/Reg</span></div>
+          <strong style="color:#a8d5b8">Deployment</strong> — Construction, licensing, restart activity<br>
+          <strong style="color:#f5c08a">Financing</strong> — Capital commitment with a specific amount<br>
+          <strong style="color:#90b8f0">Offtake</strong> — Binding or near-binding PPA / supply agreement<br>
+          <strong style="color:#d4a8e8">Market dev</strong> — Preorders, site options, feasibility studies<br>
+          <strong style="color:#90c8d8">Signaling</strong> — Non-binding MOUs without committed capital<br>
+          <strong style="color:#c0c0c0">Policy/Reg</strong> — Government action, legislation, NRC decisions<br><br>
+          <em style="color:#7a9abf">Click to see full breakdown →</em>
         </div>
       </div>
     </div>
@@ -503,7 +496,19 @@ nav {
 
 </div><!-- /content -->
 
-<!-- MODAL -->
+<!-- SIGNIFICANCE MODAL -->
+<div class="modal-overlay" id="sig-modal-overlay">
+  <div class="modal-box" style="max-width:480px">
+    <div class="modal-tag">Announcements</div>
+    <div class="modal-title">Breakdown by Significance</div>
+    <div id="sig-modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn-close" onclick="closeSigModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- DEAL MODAL -->
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal-box">
     <div class="modal-tag" id="modal-tag"></div>
@@ -811,17 +816,7 @@ function updateKPIs(data) {
 
   // Announcements
   document.getElementById('kpi-total').textContent = data.length;
-  document.getElementById('kpi-total-sub').textContent = data.length === announcements.length ? 'total tracked' : 'in current filter';
-
-  // Significance breakdown
-  const sigCounts = { Deployment:0, Financing:0, Offtake:0, 'Market development':0, Signaling:0, 'Policy / Regulatory':0 };
-  data.forEach(a => { if (sigCounts[a.Significance] !== undefined) sigCounts[a.Significance]++; });
-  document.getElementById('ks-deploy').textContent  = sigCounts['Deployment'];
-  document.getElementById('ks-finance').textContent = sigCounts['Financing'];
-  document.getElementById('ks-offtake').textContent = sigCounts['Offtake'];
-  document.getElementById('ks-market').textContent  = sigCounts['Market development'];
-  document.getElementById('ks-signal').textContent  = sigCounts['Signaling'];
-  document.getElementById('ks-policy').textContent  = sigCounts['Policy / Regulatory'];
+  document.getElementById('kpi-total-sub').textContent = data.length === announcements.length ? 'click for breakdown' : 'in filter — click for breakdown';
 }
 
 // Capital is stored in USD millions — display in appropriate scale with clear label
@@ -1021,7 +1016,50 @@ function openDealModal(idx) {
 }
 function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
 document.getElementById('modal-overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ── SIGNIFICANCE MODAL ────────────────────────────────────────────────────
+const SIG_DEFS = {
+  'Deployment':        { color: '#1e6b3c', bg: '#e6f4ec', desc: 'Concrete construction, licensing filings, or reactor restart activity' },
+  'Financing':         { color: '#7b3f00', bg: '#fef0e0', desc: 'Capital commitment with a specific stated dollar amount (equity, debt, grants)' },
+  'Offtake':           { color: '#1a5fa8', bg: '#e8f0fb', desc: 'Binding or near-binding power purchase agreement or supply contract' },
+  'Market development':{ color: '#6b3080', bg: '#f4eafb', desc: 'Preorders, site options, or feasibility studies with capital at risk' },
+  'Signaling':         { color: '#2a5a6b', bg: '#e4f3f8', desc: 'Non-binding MOUs and letters of intent without committed capital' },
+  'Policy / Regulatory':{ color: '#555',  bg: '#f0f0f0', desc: 'Government action, legislation, NRC licensing decisions' },
+};
+function openSigModal() {
+  const sigCounts = {};
+  Object.keys(SIG_DEFS).forEach(k => sigCounts[k] = 0);
+  filtered.forEach(a => { if (sigCounts[a.Significance] !== undefined) sigCounts[a.Significance]++; });
+  const total = filtered.length;
+
+  const rows = Object.entries(SIG_DEFS).map(([sig, def]) => {
+    const count = sigCounts[sig] || 0;
+    const pct = total > 0 ? Math.round(count / total * 100) : 0;
+    return `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #edf2f8">
+        <div style="width:10px;height:10px;border-radius:50%;background:${def.color};flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:700;color:#0a1828">${sig}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:1px">${def.desc}</div>
+          <div style="margin-top:6px;height:4px;background:#edf2f8;border-radius:99px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${def.color};border-radius:99px;transition:width 0.4s"></div>
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:18px;font-weight:700;color:${def.color};font-family:'Playfair Display',serif">${count}</div>
+          <div style="font-size:11px;color:var(--muted)">${pct}%</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('sig-modal-body').innerHTML = `
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px">${total} announcement${total!==1?'s':''} in current filter</div>
+    ${rows}`;
+  document.getElementById('sig-modal-overlay').classList.add('open');
+}
+function closeSigModal() { document.getElementById('sig-modal-overlay').classList.remove('open'); }
+document.getElementById('sig-modal-overlay').addEventListener('click', function(e) { if (e.target === this) closeSigModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeSigModal(); } });
 
 // ── DOWNLOAD EXCEL ────────────────────────────────────────────────────────
 function downloadExcel() {
