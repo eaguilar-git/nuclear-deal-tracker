@@ -71,7 +71,7 @@ nav {
 .hero-sub { font-size: 15px; color: #a8c4e0; line-height: 1.7; max-width: 520px; margin-bottom: 32px; }
 
 /* ── KPI CARDS ── */
-.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr) 2fr; gap: 12px; }
+.kpi-row { display: grid; grid-template-columns: repeat(6, 1fr) 2fr; gap: 12px; }
 .kpi-card {
   background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.13);
   border-radius: 10px; padding: 16px 20px; transition: background 0.15s;
@@ -302,7 +302,7 @@ nav {
       <div class="kpi-card">
         <div class="kpi-label">Capital Committed</div>
         <div class="kpi-value" id="kpi-capital">—</div>
-        <div class="kpi-sub" id="kpi-capital-sub">USD millions</div>
+        <div class="kpi-sub" id="kpi-capital-sub">USD billions</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Capacity Tracked</div>
@@ -310,16 +310,26 @@ nav {
         <div class="kpi-sub">GW across linked projects</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Announcements</div>
-        <div class="kpi-value" id="kpi-total">—</div>
-        <div class="kpi-sub" id="kpi-total-sub">in current filter</div>
+        <div class="kpi-label">Programs</div>
+        <div class="kpi-value" id="kpi-programs">—</div>
+        <div class="kpi-sub">tracked initiatives</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Projects Tracked</div>
+        <div class="kpi-label">Projects</div>
         <div class="kpi-value" id="kpi-projects">—</div>
         <div class="kpi-sub">across all programs</div>
       </div>
       <div class="kpi-card">
+        <div class="kpi-label">Reactors</div>
+        <div class="kpi-value" id="kpi-reactors">—</div>
+        <div class="kpi-sub">units tracked</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Announcements</div>
+        <div class="kpi-value" id="kpi-total">—</div>
+        <div class="kpi-sub" id="kpi-total-sub">total tracked</div>
+      </div>
+      <div class="kpi-card" style="grid-column: span 2">
         <div class="kpi-label">By Significance</div>
         <div class="kpi-sig-grid" id="kpi-sig-grid">
           <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-deploy">—</span><span class="kpi-sig-l">Deployment</span></div>
@@ -491,12 +501,19 @@ function splitCSVLine(line) {
   let cur = '', inQ = false;
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
-    if (ch === '"') { inQ = !inQ; }
-    else if (ch === ',' && !inQ) { fields.push(cur); cur = ''; }
-    else { cur += ch; }
+    if (ch === '"') {
+      // Handle escaped quotes ("")
+      if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+      else { inQ = !inQ; }
+    } else if (ch === ',' && !inQ) {
+      fields.push(cur);
+      cur = '';
+    } else {
+      cur += ch;
+    }
   }
   fields.push(cur);
-  return fields.map(f => f.replace(/^"|"$/g, ''));
+  return fields.map(f => f.trim().replace(/\r$/, ''));
 }
 
 // ── DATE HELPERS ──────────────────────────────────────────────────────────
@@ -529,6 +546,8 @@ function fmtDateShort(d) {
 // ── ENRICH ANNOUNCEMENTS ──────────────────────────────────────────────────
 function enrichAnnouncements() {
   announcements.forEach(a => {
+    // Strip any trailing carriage returns from all values
+    Object.keys(a).forEach(k => { if (typeof a[k] === 'string') a[k] = a[k].replace(/\r/g, '').trim(); });
     const proj = a['Project ID'] ? projectMap[a['Project ID']] : null;
     const prog = a['Program ID'] ? programMap[a['Program ID']] : null;
     const reac = a['Reactor ID'] ? reactorMap[a['Reactor ID']] : null;
@@ -707,8 +726,11 @@ function buildFilters() {
 
 // ── KPI UPDATE ────────────────────────────────────────────────────────────
 function updateKPIs(data) {
-  const totalCap = data.reduce((s, a) => s + (a._capUSD || 0), 0);
-  document.getElementById('kpi-capital').textContent = totalCap > 0 ? fmtNumber(totalCap) : '—';
+  // Capital — stored in USD millions, display in billions
+  const totalCapMill = data.reduce((s, a) => s + (a._capUSD || 0), 0);
+  const { value: capVal, label: capLabel } = fmtCapital(totalCapMill);
+  document.getElementById('kpi-capital').textContent = capVal;
+  document.getElementById('kpi-capital-sub').textContent = capLabel;
 
   // Capacity from linked projects (dedupe by project ID)
   const projIds = new Set(data.map(a => a['Project ID']).filter(Boolean));
@@ -723,10 +745,17 @@ function updateKPIs(data) {
     else totalGW += cap;
   });
   document.getElementById('kpi-capacity').textContent = totalGW > 0 ? totalGW.toFixed(1) : '—';
+
+  // Static counts (not filter-dependent)
+  document.getElementById('kpi-programs').textContent = programs.length;
+  document.getElementById('kpi-projects').textContent = projects.length;
+  document.getElementById('kpi-reactors').textContent = reactors.length;
+
+  // Announcements
   document.getElementById('kpi-total').textContent = data.length;
   document.getElementById('kpi-total-sub').textContent = data.length === announcements.length ? 'total tracked' : 'in current filter';
-  document.getElementById('kpi-projects').textContent = projects.length;
 
+  // Significance breakdown
   const sigCounts = { Deployment:0, Financing:0, Offtake:0, 'Market development':0, Signaling:0, 'Policy / Regulatory':0 };
   data.forEach(a => { if (sigCounts[a.Significance] !== undefined) sigCounts[a.Significance]++; });
   document.getElementById('ks-deploy').textContent  = sigCounts['Deployment'];
@@ -737,10 +766,17 @@ function updateKPIs(data) {
   document.getElementById('ks-policy').textContent  = sigCounts['Policy / Regulatory'];
 }
 
-function fmtNumber(n) {
-  if (n >= 1000000) return (n/1000000).toFixed(1) + 'T';
-  if (n >= 1000)    return (n/1000).toFixed(1) + 'B';
-  return Math.round(n).toLocaleString();
+// Capital is stored in USD millions — display in appropriate scale with clear label
+function fmtCapital(usdMillions) {
+  if (!usdMillions || usdMillions === 0) return { value: '—', label: 'USD billions' };
+  const billions = usdMillions / 1000;
+  if (billions >= 1000) {
+    return { value: (billions / 1000).toFixed(1) + 'T', label: 'USD trillions' };
+  }
+  if (billions >= 1) {
+    return { value: billions.toFixed(1) + 'B', label: 'USD billions' };
+  }
+  return { value: Math.round(usdMillions).toLocaleString() + 'M', label: 'USD millions' };
 }
 
 // ── SORT ──────────────────────────────────────────────────────────────────
