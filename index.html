@@ -169,7 +169,29 @@ nav {
 .b-review { color: #b91c1c; background: #fee2e2; }
 .b-entity { color: var(--slate); background: var(--bg); border: 1px solid var(--border); }
 
-/* ── MULTI-SELECT DROPDOWN ── */
+/* ── SEARCH BAR ── */
+.search-wrap { position: relative; flex: 1; max-width: 360px; display: flex; align-items: center; }
+.search-icon { position: absolute; left: 10px; font-size: 13px; pointer-events: none; opacity: 0.5; }
+.search-input { width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 7px 32px 7px 32px; font-size: 13px; color: #1a2840; font-family: inherit; outline: none; transition: border-color 0.12s; background: var(--white); }
+.search-input:focus { border-color: var(--blue); }
+.search-input::placeholder { color: var(--muted); }
+.search-clear { position: absolute; right: 8px; background: none; border: none; cursor: pointer; color: var(--muted); font-size: 11px; padding: 2px 4px; border-radius: 3px; display: none; transition: color 0.12s; }
+.search-clear:hover { color: var(--slate); }
+.search-clear.show { display: block; }
+.search-highlight { background: #fff3cd; border-radius: 2px; padding: 0 1px; }
+.tip-wrap { position: relative; }
+.tip-icon { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,0.2); color: rgba(255,255,255,0.7); font-size: 9px; font-weight: 700; cursor: help; margin-left: 5px; vertical-align: middle; flex-shrink: 0; }
+.tip-box {
+  position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 400;
+  background: #0a1828; color: #c8dff0; font-size: 12px; line-height: 1.6;
+  padding: 12px 14px; border-radius: 8px; width: 260px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4); pointer-events: none;
+  opacity: 0; transform: translateY(4px); transition: opacity 0.15s, transform 0.15s;
+  font-family: 'Source Sans 3', sans-serif; font-weight: 400;
+}
+.tip-box::after { content: ''; position: absolute; top: 100%; left: 16px; border: 6px solid transparent; border-top-color: #0a1828; }
+.tip-wrap:hover .tip-box { opacity: 1; transform: translateY(0); }
+.tip-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--sky); margin-bottom: 6px; }
 .ms-wrap { position: relative; }
 .ms-wrap label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
 .ms-trigger {
@@ -299,35 +321,64 @@ nav {
     <h1>Nuclear Deal Tracker</h1>
     <p class="hero-sub">Tracking commercialization milestones, partnerships, and deployment announcements across U.S. advanced nuclear reactor developers.</p>
     <div class="kpi-row" id="kpi-row">
-      <div class="kpi-card">
-        <div class="kpi-label">Capital Committed</div>
+      <div class="kpi-card tip-wrap">
+        <div class="kpi-label">Capital Committed <span class="tip-icon">?</span></div>
         <div class="kpi-value" id="kpi-capital">—</div>
         <div class="kpi-sub" id="kpi-capital-sub">USD billions</div>
+        <div class="tip-box">
+          <div class="tip-title">Methodology</div>
+          Sum of <strong>Capital Value (low)</strong> across all deals in the current filter, normalized to USD using approximate FX rates at time of announcement. Includes all deal types — PPA contract values, equity investments, grants, and loans. Use the Significance and Deal Type filters to narrow to specific capital categories (e.g. filter to <em>Financing</em> for committed equity/debt/grants only). Values marked "Up to" or "At least" use the stated figure as the lower bound.
+        </div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Capacity Tracked</div>
+      <div class="kpi-card tip-wrap">
+        <div class="kpi-label">Capacity Tracked <span class="tip-icon">?</span></div>
         <div class="kpi-value" id="kpi-capacity">—</div>
         <div class="kpi-sub">GW across linked projects</div>
+        <div class="tip-box">
+          <div class="tip-title">Methodology</div>
+          Sum of <strong>Total Capacity</strong> from all projects linked to deals in the current filter, deduplicated by project (each project counted once). Values entered in MW or TW are normalized to GW. Reflects planned or operational capacity — not necessarily online today.
+        </div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Programs</div>
+      <div class="kpi-card tip-wrap">
+        <div class="kpi-label">Programs <span class="tip-icon">?</span></div>
         <div class="kpi-value" id="kpi-programs">—</div>
         <div class="kpi-sub">tracked initiatives</div>
+        <div class="tip-box">
+          <div class="tip-title">What is a Program?</div>
+          A <strong>Program</strong> is a high-level initiative that may span multiple sites or developers. Examples include a company's overall nuclear strategy (e.g. Amazon Nuclear Initiative), a multi-reactor effort at one site (e.g. Project Matador), or a government umbrella (e.g. DOE ARDP). Programs contain one or many Projects.
+        </div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Projects</div>
+      <div class="kpi-card tip-wrap">
+        <div class="kpi-label">Projects <span class="tip-icon">?</span></div>
         <div class="kpi-value" id="kpi-projects">—</div>
         <div class="kpi-sub">across all programs</div>
+        <div class="tip-box">
+          <div class="tip-title">What is a Project?</div>
+          A <strong>Project</strong> is a specific reactor development or commercial agreement tied to a named site and lead company — e.g. "Microsoft – Constellation (TMI-1)" or "Dow – X-energy (Seadrift SMR)". Each project has one primary lead and belongs to a parent program. Projects may contain multiple reactor units.
+        </div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Reactors</div>
+      <div class="kpi-card tip-wrap">
+        <div class="kpi-label">Reactors <span class="tip-icon">?</span></div>
         <div class="kpi-value" id="kpi-reactors">—</div>
         <div class="kpi-sub">units tracked</div>
+        <div class="tip-box">
+          <div class="tip-title">What is a Reactor?</div>
+          A <strong>Reactor</strong> is an individual reactor unit within a project — e.g. "Unit 1 (AP1000)" or "Pioneer Unit 1 (SMR-300)". Only multi-unit projects have separate reactor rows. Single-unit projects are tracked at the project level. Reactor-level deals are those tied to a specific unit rather than the project as a whole.
+        </div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Announcements</div>
+      <div class="kpi-card tip-wrap">
+        <div class="kpi-label">Announcements <span class="tip-icon">?</span></div>
         <div class="kpi-value" id="kpi-total">—</div>
         <div class="kpi-sub" id="kpi-total-sub">total tracked</div>
+        <div class="tip-box">
+          <div class="tip-title">Significance Scale</div>
+          <strong style="color:#a8d5b8">Deployment</strong> — Concrete construction, licensing, or restart activity<br>
+          <strong style="color:#f5c08a">Financing</strong> — Capital commitment with a specific dollar amount<br>
+          <strong style="color:#90b8f0">Offtake</strong> — Binding or near-binding PPA or supply agreement<br>
+          <strong style="color:#d4a8e8">Market dev</strong> — Preorders, site options, feasibility studies with capital at risk<br>
+          <strong style="color:#90c8d8">Signaling</strong> — Non-binding MOUs and intent without committed capital<br>
+          <strong style="color:#c0c0c0">Policy/Reg</strong> — Government action, legislation, NRC decisions
+        </div>
       </div>
       <div class="kpi-card" style="grid-column: span 2">
         <div class="kpi-label">By Significance</div>
@@ -351,7 +402,14 @@ nav {
   <div class="tab-pane active" id="tab-feed">
     <div class="filters">
       <div class="filter-top">
-        <span class="filter-label">Filter Results</span>
+        <div style="display:flex;align-items:center;gap:12px;flex:1">
+          <span class="filter-label" style="white-space:nowrap">Filter Results</span>
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="f-search" class="search-input" placeholder="Search deals by keyword…" oninput="renderFeed()">
+            <button class="search-clear" id="search-clear-btn" onclick="clearSearch()" title="Clear">✕</button>
+          </div>
+        </div>
         <div class="filter-actions">
           <button class="btn-reset" onclick="resetFilters()">Reset filters</button>
           <button class="btn-download" onclick="downloadExcel()">⬇ Download Excel</button>
@@ -373,7 +431,7 @@ nav {
         <label class="toggle-wrap" style="margin-left:16px">
           <input type="checkbox" id="f-review" onchange="renderFeed()">
           <span class="toggle-track"><span class="toggle-thumb"></span></span>
-          <span class="toggle-label">Needs Review only</span>
+          <span class="toggle-label">Exclude needs review</span>
         </label>
         <label class="toggle-wrap" style="margin-left:12px">
           <input type="checkbox" id="f-us-only" checked onchange="renderFeed()">
@@ -578,9 +636,9 @@ function enrichAnnouncements() {
     // Linked name for display
     a._linkedName = proj?.['Project Name'] || prog?.['Program Name'] || reac?.['Unit Name / Number'] || '';
 
-    // Capital in USD millions
-    const capLow = parseFloat(a['USD Val low (calc.)']) || parseFloat(a['Capital Value (low)']) || 0;
-    a._capUSD = capLow;
+    // Capital in USD millions — strip commas before parsing (values like "332,000.")
+    const rawCap = (a['USD Val low (calc.)'] || a['Capital Value (low)'] || '').replace(/,/g, '');
+    a._capUSD = parseFloat(rawCap) || 0;
 
     // Is US?
     a._isUS = US_STATES.has(a._state) || a._state === 'Multiple' || a._state === '';
@@ -805,6 +863,11 @@ function renderFeed() {
   const fReview = document.getElementById('f-review').checked;
   const fUSOnly = document.getElementById('f-us-only').checked;
 
+  const fSearch = (document.getElementById('f-search').value || '').toLowerCase().trim();
+  // Show/hide clear button
+  const clearBtn = document.getElementById('search-clear-btn');
+  if (clearBtn) clearBtn.classList.toggle('show', fSearch.length > 0);
+
   filtered = announcements.filter(a => {
     if (fSig.size    && !fSig.has(a['Significance']))    return false;
     if (fType.size   && !fType.has(a['Deal Type']))      return false;
@@ -812,11 +875,19 @@ function renderFeed() {
     if (fState.size  && !fState.has(a._state))           return false;
     if (fImpact.size && !fImpact.has(a['Impact']))       return false;
     if (fLead.size   && !fLead.has(a._lead))             return false;
-    if (fReview && a['Needs Review'] !== 'Yes')          return false;
+    if (fReview && a['Needs Review'] === 'Yes')          return false;
     if (fUSOnly && !a._isUS)                             return false;
     const ts = parseDate(a['Announcement Date']);
     if (fFrom && ts && ts < parseDate(fFrom)) return false;
     if (fTo   && ts && ts > parseDate(fTo))   return false;
+    // Keyword search across summary, partners, lead, deal type, linked name
+    if (fSearch) {
+      const haystack = [
+        a['Deal Summary'], a['Partners'], a._lead, a['Deal Type'],
+        a['Significance'], a._linkedName, a['Announcement Date']
+      ].join(' ').toLowerCase();
+      if (!haystack.includes(fSearch)) return false;
+    }
     return true;
   });
 
@@ -848,10 +919,15 @@ function renderFeed() {
   }
 
   const grid = '90px 110px 1fr 1.8fr 110px 110px 80px 36px';
+  const fSearch = (document.getElementById('f-search').value || '').toLowerCase().trim();
   body.innerHTML = filtered.map((a, i) => {
-    const capStr = a['Capital Value (low)']
-      ? `${parseFloat(a['Capital Value (low)']).toLocaleString()} ${a['Capital Unit']||''}`.trim()
+    const rawCap = (a['Capital Value (low)'] || '').replace(/,/g, '');
+    const capNum = parseFloat(rawCap);
+    const capStr = capNum
+      ? `${capNum.toLocaleString()} ${a['Capital Unit']||''}`.trim()
       : '—';
+    const summary = (a['Deal Summary']||'').slice(0,120) + ((a['Deal Summary']||'').length>120?'…':'');
+    const summaryHtml = fSearch ? highlight(summary, fSearch) : summary;
     const linkedName = a._linkedName ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">${a._linkedName}</div>` : '';
     const intlFlag = !a._isUS ? `<span class="intl-flag">INTL</span>` : '';
     const reviewFlag = a['Needs Review'] === 'Yes' ? reviewBadge() : '';
@@ -860,7 +936,7 @@ function renderFeed() {
       <span class="cell" style="font-size:12px">${a['Deal Type']||'—'}</span>
       <span class="cell">${sigBadge(a['Significance'])}</span>
       <div class="cell-summary">
-        <button class="lbtn" onclick="openDealModal(${i})">${(a['Deal Summary']||'').slice(0,120)}${(a['Deal Summary']||'').length>120?'…':''}</button>
+        <button class="lbtn" onclick="openDealModal(${i})">${summaryHtml}</button>
         ${linkedName}
       </div>
       <div class="cell">
@@ -878,16 +954,29 @@ function resetFilters() {
   ['ms-sig','ms-type','ms-entity','ms-lead','ms-state','ms-impact'].forEach(id => {
     if (msState[id]) msState[id].clear();
     updateMsTrigger(id);
-    // Uncheck all checkboxes in the dropdown
     document.querySelectorAll(`#${id} .ms-option input`).forEach(cb => cb.checked = false);
     const allCb = document.querySelector(`#${id}-all`);
     if (allCb) allCb.checked = true;
   });
+  document.getElementById('f-search').value = '';
+  document.getElementById('search-clear-btn').classList.remove('show');
   document.getElementById('f-date-from').value = '';
   document.getElementById('f-date-to').value   = '';
   document.getElementById('f-review').checked  = false;
   document.getElementById('f-us-only').checked = true;
   renderFeed();
+}
+
+// ── SEARCH HELPERS ────────────────────────────────────────────────────────
+function clearSearch() {
+  document.getElementById('f-search').value = '';
+  document.getElementById('search-clear-btn').classList.remove('show');
+  renderFeed();
+}
+function highlight(text, query) {
+  if (!query || !text) return text || '';
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark class="search-highlight">$1</mark>');
 }
 
 // ── MODAL ─────────────────────────────────────────────────────────────────
