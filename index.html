@@ -169,7 +169,35 @@ nav {
 .b-review { color: #b91c1c; background: #fee2e2; }
 .b-entity { color: var(--slate); background: var(--bg); border: 1px solid var(--border); }
 
-/* ── MODAL ── */
+/* ── MULTI-SELECT DROPDOWN ── */
+.ms-wrap { position: relative; }
+.ms-wrap label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+.ms-trigger {
+  width: 100%; border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 28px 7px 10px; font-size: 13px; color: #1a2840; background: var(--white);
+  cursor: pointer; font-family: inherit; text-align: left; display: flex; align-items: center;
+  justify-content: space-between; gap: 4px; transition: border-color 0.12s; white-space: nowrap; overflow: hidden;
+}
+.ms-trigger:hover, .ms-wrap.open .ms-trigger { border-color: var(--blue); }
+.ms-trigger-text { overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.ms-trigger-arrow { font-size: 9px; color: var(--muted); flex-shrink: 0; transition: transform 0.15s; }
+.ms-wrap.open .ms-trigger-arrow { transform: rotate(180deg); }
+.ms-count { background: var(--blue); color: #fff; font-size: 10px; font-weight: 700; border-radius: 99px; padding: 1px 6px; flex-shrink: 0; }
+.ms-dropdown {
+  position: absolute; top: calc(100% + 4px); left: 0; min-width: 100%; max-width: 280px;
+  background: var(--white); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 200; display: none;
+  max-height: 240px; overflow-y: auto;
+}
+.ms-wrap.open .ms-dropdown { display: block; }
+.ms-search { padding: 8px 10px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--white); }
+.ms-search input { width: 100%; border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px; font-size: 12px; font-family: inherit; outline: none; }
+.ms-search input:focus { border-color: var(--blue); }
+.ms-option { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; font-size: 13px; color: var(--slate); transition: background 0.08s; }
+.ms-option:hover { background: #f4f8ff; }
+.ms-option input[type=checkbox] { width: 14px; height: 14px; accent-color: var(--blue); flex-shrink: 0; cursor: pointer; }
+.ms-option.select-all { border-bottom: 1px solid var(--border); font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; padding: 6px 12px; }
+.ms-option.select-all:hover { background: var(--bg); }
 .modal-overlay { position: fixed; inset: 0; background: rgba(5,15,35,0.55); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
 .modal-overlay.open { opacity: 1; pointer-events: all; }
 .modal-box { background: var(--white); border-radius: 10px; padding: 36px 40px; width: 100%; max-width: 580px; box-shadow: 0 24px 60px rgba(0,0,0,0.2); border: 1px solid var(--border); max-height: 90vh; overflow-y: auto; transform: translateY(12px); transition: transform 0.2s; }
@@ -320,12 +348,12 @@ nav {
         </div>
       </div>
       <div class="filter-grid">
-        <div class="sel-wrap"><label>Significance</label><select id="f-sig"><option value="">All</option></select></div>
-        <div class="sel-wrap"><label>Deal Type</label><select id="f-type"><option value="">All</option></select></div>
-        <div class="sel-wrap"><label>Lead Entity Type</label><select id="f-entity"><option value="">All</option></select></div>
-        <div class="sel-wrap"><label>Location (State)</label><select id="f-state"><option value="">All</option></select></div>
-        <div class="sel-wrap"><label>Impact</label><select id="f-impact"><option value="">All</option></select></div>
-        <div class="sel-wrap"><label>Primary Lead</label><select id="f-lead"><option value="">All</option></select></div>
+        <div class="ms-wrap" id="ms-sig"><label>Significance</label><button class="ms-trigger" onclick="toggleMs('ms-sig')"><span class="ms-trigger-text">All</span><span class="ms-trigger-arrow">▾</span></button><div class="ms-dropdown"></div></div>
+        <div class="ms-wrap" id="ms-type"><label>Deal Type</label><button class="ms-trigger" onclick="toggleMs('ms-type')"><span class="ms-trigger-text">All</span><span class="ms-trigger-arrow">▾</span></button><div class="ms-dropdown"></div></div>
+        <div class="ms-wrap" id="ms-entity"><label>Lead Entity Type</label><button class="ms-trigger" onclick="toggleMs('ms-entity')"><span class="ms-trigger-text">All</span><span class="ms-trigger-arrow">▾</span></button><div class="ms-dropdown"></div></div>
+        <div class="ms-wrap" id="ms-lead"><label>Primary Lead</label><button class="ms-trigger" onclick="toggleMs('ms-lead')"><span class="ms-trigger-text">All</span><span class="ms-trigger-arrow">▾</span></button><div class="ms-dropdown"></div></div>
+        <div class="ms-wrap" id="ms-state"><label>Location (State)</label><button class="ms-trigger" onclick="toggleMs('ms-state')"><span class="ms-trigger-text">All</span><span class="ms-trigger-arrow">▾</span></button><div class="ms-dropdown"></div></div>
+        <div class="ms-wrap" id="ms-impact"><label>Impact</label><button class="ms-trigger" onclick="toggleMs('ms-impact')"><span class="ms-trigger-text">All</span><span class="ms-trigger-arrow">▾</span></button><div class="ms-dropdown"></div></div>
       </div>
       <div class="filter-row2">
         <div class="sel-wrap" style="display:flex;gap:8px;align-items:flex-end">
@@ -388,6 +416,9 @@ nav {
         </select>
       </div>
     </div>
+
+    <!-- Full entity list grid -->
+    <div id="entity-list" style="margin-bottom:20px"></div>
 
     <div id="explorer-content">
       <div class="no-selection">
@@ -566,24 +597,109 @@ function switchTab(tab) {
   document.getElementById(`tab-${tab}`).classList.add('active');
 }
 
-// ── POPULATE FILTERS ──────────────────────────────────────────────────────
-function populateSel(id, vals) {
-  const sel = document.getElementById(id);
-  const current = sel.value;
-  sel.innerHTML = `<option value="">All</option>` + [...new Set(vals)].filter(Boolean).sort().map(v => `<option value="${v}"${v===current?' selected':''}>${v}</option>`).join('');
-}
-function buildFilters() {
-  populateSel('f-sig',    announcements.map(a => a['Significance']));
-  populateSel('f-type',   announcements.map(a => a['Deal Type']));
-  populateSel('f-entity', announcements.map(a => a._entityType));
-  populateSel('f-impact', ['High','Medium','Low']);
-  populateSel('f-lead',   announcements.map(a => a._lead));
-  // States — only US states
-  const states = [...new Set(announcements.filter(a => a._isUS && a._state && a._state !== 'Multiple' && a._state !== 'TBD' && a._state !== '').map(a => a._state))].sort();
-  const stSel = document.getElementById('f-state');
-  stSel.innerHTML = `<option value="">All</option><option value="Multiple">Multiple (program-level)</option>` + states.map(s => `<option value="${s}">${s}</option>`).join('');
+// ── MULTI-SELECT DROPDOWN ENGINE ─────────────────────────────────────────
+const msState = {}; // { msId: Set of selected values }
 
-  ['f-sig','f-type','f-entity','f-state','f-impact','f-lead','f-date-from','f-date-to'].forEach(id => {
+function toggleMs(msId) {
+  const wrap = document.getElementById(msId);
+  const isOpen = wrap.classList.contains('open');
+  // Close all others
+  document.querySelectorAll('.ms-wrap.open').forEach(w => w.classList.remove('open'));
+  if (!isOpen) wrap.classList.add('open');
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', e => {
+  if (!e.target.closest('.ms-wrap')) {
+    document.querySelectorAll('.ms-wrap.open').forEach(w => w.classList.remove('open'));
+  }
+});
+
+function buildMs(msId, values, hasSearch = false) {
+  if (!msState[msId]) msState[msId] = new Set();
+  const dropdown = document.querySelector(`#${msId} .ms-dropdown`);
+  const sorted = [...new Set(values)].filter(Boolean).sort();
+
+  let html = '';
+  if (hasSearch) html += `<div class="ms-search"><input type="text" placeholder="Search…" oninput="filterMsOptions('${msId}', this.value)"></div>`;
+  html += `<div class="ms-option select-all" onclick="toggleMsAll('${msId}')"><input type="checkbox" id="${msId}-all" ${msState[msId].size === 0 ? 'checked' : ''}> All</div>`;
+  html += sorted.map(v => `
+    <div class="ms-option" onclick="toggleMsVal('${msId}','${v.replace(/'/g,"\\'")}',event)">
+      <input type="checkbox" ${msState[msId].has(v) ? 'checked' : ''}> ${v}
+    </div>`).join('');
+
+  dropdown.innerHTML = html;
+  updateMsTrigger(msId, sorted.length);
+}
+
+function toggleMsVal(msId, val, e) {
+  e.stopPropagation();
+  const set = msState[msId];
+  if (set.has(val)) set.delete(val); else set.add(val);
+  // Re-render checkboxes
+  const opts = document.querySelectorAll(`#${msId} .ms-option:not(.select-all)`);
+  opts.forEach(opt => {
+    const cb = opt.querySelector('input');
+    const optVal = opt.textContent.trim();
+    cb.checked = set.has(optVal);
+  });
+  const allCb = document.querySelector(`#${msId}-all`);
+  if (allCb) allCb.checked = set.size === 0;
+  updateMsTrigger(msId);
+  renderFeed();
+}
+
+function toggleMsAll(msId) {
+  msState[msId].clear();
+  document.querySelectorAll(`#${msId} .ms-option input`).forEach(cb => cb.checked = false);
+  const allCb = document.querySelector(`#${msId}-all`);
+  if (allCb) allCb.checked = true;
+  updateMsTrigger(msId);
+  renderFeed();
+}
+
+function filterMsOptions(msId, query) {
+  const q = query.toLowerCase();
+  document.querySelectorAll(`#${msId} .ms-option:not(.select-all)`).forEach(opt => {
+    opt.style.display = opt.textContent.trim().toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function updateMsTrigger(msId) {
+  const set = msState[msId];
+  const trigger = document.querySelector(`#${msId} .ms-trigger-text`);
+  const existingCount = document.querySelector(`#${msId} .ms-count`);
+  if (existingCount) existingCount.remove();
+  if (set.size === 0) {
+    trigger.textContent = 'All';
+  } else if (set.size === 1) {
+    trigger.textContent = [...set][0];
+  } else {
+    trigger.textContent = `${[...set][0]}`;
+    const countEl = document.createElement('span');
+    countEl.className = 'ms-count';
+    countEl.textContent = `+${set.size - 1}`;
+    document.querySelector(`#${msId} .ms-trigger`).insertBefore(countEl, document.querySelector(`#${msId} .ms-trigger-arrow`));
+  }
+}
+
+function getMsVals(msId) { return msState[msId] || new Set(); }
+
+// ── POPULATE FILTERS ──────────────────────────────────────────────────────
+function buildFilters() {
+  buildMs('ms-sig',    announcements.map(a => a['Significance']));
+  buildMs('ms-type',   announcements.map(a => a['Deal Type']), true);
+  buildMs('ms-entity', announcements.map(a => a._entityType));
+  buildMs('ms-lead',   announcements.map(a => a._lead), true);
+  buildMs('ms-impact', ['High','Medium','Low']);
+
+  // States — only US states
+  const states = [...new Set(
+    announcements.filter(a => a._isUS && a._state && a._state !== 'TBD' && a._state !== '').map(a => a._state)
+  )].sort();
+  buildMs('ms-state', states);
+
+  ['f-date-from','f-date-to'].forEach(id => {
     document.getElementById(id).addEventListener('change', renderFeed);
     document.getElementById(id).addEventListener('input', renderFeed);
   });
@@ -642,26 +758,26 @@ function sortBy(col) {
 
 // ── RENDER FEED ───────────────────────────────────────────────────────────
 function renderFeed() {
-  const fSig    = document.getElementById('f-sig').value;
-  const fType   = document.getElementById('f-type').value;
-  const fEntity = document.getElementById('f-entity').value;
-  const fState  = document.getElementById('f-state').value;
-  const fImpact = document.getElementById('f-impact').value;
-  const fLead   = document.getElementById('f-lead').value;
+  const fSig    = getMsVals('ms-sig');
+  const fType   = getMsVals('ms-type');
+  const fEntity = getMsVals('ms-entity');
+  const fState  = getMsVals('ms-state');
+  const fImpact = getMsVals('ms-impact');
+  const fLead   = getMsVals('ms-lead');
   const fFrom   = document.getElementById('f-date-from').value;
   const fTo     = document.getElementById('f-date-to').value;
   const fReview = document.getElementById('f-review').checked;
   const fUSOnly = document.getElementById('f-us-only').checked;
 
   filtered = announcements.filter(a => {
-    if (fSig    && a['Significance'] !== fSig)   return false;
-    if (fType   && a['Deal Type']    !== fType)  return false;
-    if (fEntity && a._entityType     !== fEntity) return false;
-    if (fState  && a._state          !== fState)  return false;
-    if (fImpact && a['Impact']       !== fImpact) return false;
-    if (fLead   && a._lead           !== fLead)   return false;
-    if (fReview && a['Needs Review'] !== 'Yes')   return false;
-    if (fUSOnly && !a._isUS)                      return false;
+    if (fSig.size    && !fSig.has(a['Significance']))    return false;
+    if (fType.size   && !fType.has(a['Deal Type']))      return false;
+    if (fEntity.size && !fEntity.has(a._entityType))     return false;
+    if (fState.size  && !fState.has(a._state))           return false;
+    if (fImpact.size && !fImpact.has(a['Impact']))       return false;
+    if (fLead.size   && !fLead.has(a._lead))             return false;
+    if (fReview && a['Needs Review'] !== 'Yes')          return false;
+    if (fUSOnly && !a._isUS)                             return false;
     const ts = parseDate(a['Announcement Date']);
     if (fFrom && ts && ts < parseDate(fFrom)) return false;
     if (fTo   && ts && ts > parseDate(fTo))   return false;
@@ -723,11 +839,17 @@ function renderFeed() {
 }
 
 function resetFilters() {
-  ['f-sig','f-type','f-entity','f-state','f-impact','f-lead','f-date-from','f-date-to'].forEach(id => {
-    const el = document.getElementById(id);
-    el.value = id === 'f-date-from' || id === 'f-date-to' ? '' : '';
+  ['ms-sig','ms-type','ms-entity','ms-lead','ms-state','ms-impact'].forEach(id => {
+    if (msState[id]) msState[id].clear();
+    updateMsTrigger(id);
+    // Uncheck all checkboxes in the dropdown
+    document.querySelectorAll(`#${id} .ms-option input`).forEach(cb => cb.checked = false);
+    const allCb = document.querySelector(`#${id}-all`);
+    if (allCb) allCb.checked = true;
   });
-  document.getElementById('f-review').checked = false;
+  document.getElementById('f-date-from').value = '';
+  document.getElementById('f-date-to').value   = '';
+  document.getElementById('f-review').checked  = false;
   document.getElementById('f-us-only').checked = true;
   renderFeed();
 }
@@ -800,18 +922,65 @@ function setMode(mode) {
   sel.innerHTML = '<option value="">— choose one —</option>';
 
   let items = [];
-  if (mode === 'program') items = programs.map(p => ({ id: p['Program ID'], name: p['Program Name'] }));
-  if (mode === 'project') items = projects.map(p => ({ id: p['Project ID'], name: p['Project Name'] }));
-  if (mode === 'reactor') items = reactors.map(r => ({ id: r['Reactor ID'], name: `${r['Unit Name / Number']} (${r['Project ID (opt.)']||'standalone'})` }));
+  if (mode === 'program') items = programs.map(p => ({ id: p['Program ID'], name: p['Program Name'], sub: p['Program Type'], meta: p['Lead Entity'], status: p['Status'] }));
+  if (mode === 'project') items = projects.map(p => ({ id: p['Project ID'], name: p['Project Name'], sub: p['Project Type'], meta: `${p['Primary Lead']||''} · ${p['State']||''}`, status: p['Status'], tech: p['Reactor Technology'] }));
+  if (mode === 'reactor') items = reactors.map(r => {
+    const proj = r['Project ID (opt.)'] ? projectMap[r['Project ID (opt.)']] : null;
+    return { id: r['Reactor ID'], name: r['Unit Name / Number'], sub: r['Technology'], meta: proj ? proj['Project Name'] : r['Site Name']||'Standalone', status: r['Status'] };
+  });
 
   items.sort((a,b) => a.name.localeCompare(b.name));
   sel.innerHTML += items.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
 
+  // Render full clickable entity list
+  renderEntityList(items, mode);
+
   document.getElementById('explorer-content').innerHTML = `
     <div class="no-selection">
       <div class="no-selection-icon">🔍</div>
-      <div class="no-selection-text">Select a ${mode} above to explore its announcement timeline.</div>
+      <div class="no-selection-text">Select a ${mode} above or click a card below to explore its announcement timeline.</div>
     </div>`;
+}
+
+function renderEntityList(items, mode) {
+  const listEl = document.getElementById('entity-list');
+  if (!items.length) { listEl.innerHTML = ''; return; }
+
+  const dealCounts = {};
+  items.forEach(item => {
+    let count = 0;
+    if (mode === 'program') count = announcements.filter(a => a['Program ID'] === item.id || (a['Project ID'] && projectMap[a['Project ID']]?.['Program ID (opt.)'] === item.id)).length;
+    if (mode === 'project') count = announcements.filter(a => a['Project ID'] === item.id).length;
+    if (mode === 'reactor') count = announcements.filter(a => a['Reactor ID'] === item.id).length;
+    dealCounts[item.id] = count;
+  });
+
+  listEl.innerHTML = `
+    <div style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:20px 24px;box-shadow:0 1px 4px rgba(0,0,0,0.04)">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.14em;color:var(--muted);font-weight:700;margin-bottom:14px">${items.length} ${mode}${items.length!==1?'s':''}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">
+        ${items.map(item => `
+          <div class="proj-card" onclick="selectEntity('${item.id}')" style="cursor:pointer">
+            <div class="proj-card-name" style="font-size:13px">${item.name}</div>
+            <div class="proj-card-meta" style="margin-top:5px">
+              ${item.sub ? `<span class="badge b-entity" style="font-size:10px">${item.sub}</span>` : ''}
+              ${item.status === 'Active' ? `<span class="badge b-deployment" style="font-size:10px">Active</span>` : item.status ? `<span class="badge b-low" style="font-size:10px">${item.status}</span>` : ''}
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+              <span style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${item.meta||''}</span>
+              <span style="font-size:11px;color:var(--blue);font-weight:700;white-space:nowrap;margin-left:6px">${dealCounts[item.id]} deal${dealCounts[item.id]!==1?'s':''}</span>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function selectEntity(id, mode) {
+  if (mode) setMode(mode);
+  document.getElementById('explorer-select').value = id;
+  loadEntity();
+  // Smooth scroll to detail
+  setTimeout(() => document.getElementById('explorer-content').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 }
 
 function loadEntity() {
@@ -919,11 +1088,62 @@ function renderReactorView(reacId) {
   if (!reac) return;
   const linkedDeals = announcements.filter(a => a['Reactor ID'] === reacId);
   const proj = reac['Project ID (opt.)'] ? projectMap[reac['Project ID (opt.)']] : null;
+  const prog = proj?.['Program ID (opt.)'] ? programMap[proj['Program ID (opt.)']] : null;
   const sortedDeals = [...linkedDeals].sort((a,b) => parseDate(b['Announcement Date']) - parseDate(a['Announcement Date']));
 
   const capNum = parseFloat(reac['Capacity'])||0;
   const capUnit = reac['Capacity Unit']||'MW';
   const capGW = capUnit==='MW' ? capNum/1000 : capUnit==='TW' ? capNum*1000 : capNum;
+
+  // Build hierarchy breadcrumb
+  let hierarchyHtml = '';
+  if (prog || proj) {
+    hierarchyHtml = `<div style="background:#f8fbff;border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin:0 28px 0">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);font-weight:700;margin-bottom:12px">Connected to</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:stretch">`;
+
+    if (proj) {
+      const projDeals = announcements.filter(a => a['Project ID'] === proj['Project ID']).length;
+      const projCapNum = parseFloat(proj['Total Capacity'])||0;
+      const projCapUnit = proj['Capacity Unit']||'GW';
+      const projCapGW = projCapUnit==='MW' ? projCapNum/1000 : projCapUnit==='TW' ? projCapNum*1000 : projCapNum;
+      hierarchyHtml += `
+        <div class="proj-card" style="flex:1;min-width:200px;cursor:pointer" onclick="selectEntity('${proj['Project ID']}', 'project')">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--blue);font-weight:700;margin-bottom:6px">Parent Project</div>
+          <div class="proj-card-name">${proj['Project Name']}</div>
+          <div class="proj-card-meta" style="margin-top:6px">
+            <span class="badge b-entity" style="font-size:10px">${proj['Project Type']||''}</span>
+            <span class="badge b-entity" style="font-size:10px">${proj['State']||''}</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">${proj['Primary Lead']||''} · ${proj['Reactor Technology']||''}</div>
+          <div style="display:flex;gap:12px;margin-top:8px">
+            ${projCapGW > 0 ? `<span style="font-size:11px;color:var(--slate)"><strong>${projCapGW.toFixed(1)} GW</strong> total</span>` : ''}
+            <span style="font-size:11px;color:var(--blue);font-weight:700">${projDeals} deals →</span>
+          </div>
+        </div>`;
+    }
+
+    if (prog) {
+      const progDeals = announcements.filter(a => a['Program ID'] === prog['Program ID']).length;
+      const progProjects = projects.filter(p => p['Program ID (opt.)'] === prog['Program ID']).length;
+      hierarchyHtml += `
+        <div class="proj-card" style="flex:1;min-width:200px;cursor:pointer" onclick="selectEntity('${prog['Program ID']}', 'program')">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--c-market);font-weight:700;margin-bottom:6px">Parent Program</div>
+          <div class="proj-card-name">${prog['Program Name']}</div>
+          <div class="proj-card-meta" style="margin-top:6px">
+            <span class="badge b-entity" style="font-size:10px">${prog['Program Type']||''}</span>
+            <span class="badge ${prog['Status']==='Active'?'b-deployment':'b-low'}" style="font-size:10px">${prog['Status']||''}</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">Lead: ${prog['Lead Entity']||''}</div>
+          <div style="display:flex;gap:12px;margin-top:8px">
+            <span style="font-size:11px;color:var(--slate)"><strong>${progProjects}</strong> projects</span>
+            <span style="font-size:11px;color:var(--blue);font-weight:700">${progDeals} program deals →</span>
+          </div>
+        </div>`;
+    }
+
+    hierarchyHtml += `</div></div>`;
+  }
 
   let html = `
     <div class="entity-detail">
@@ -935,17 +1155,20 @@ function renderReactorView(reacId) {
             ${reac['State'] ? `<span class="badge b-entity">${reac['State']}</span>` : ''}
             <span class="badge ${reac['Status']==='Active'?'b-deployment':'b-low'}">${reac['Status']||''}</span>
           </div>
-          ${proj ? `<div style="margin-top:8px;font-size:13px;color:var(--muted)">Part of project: <button class="lbtn" onclick="document.getElementById('explorer-select').value='${proj['Project ID']}';setMode('project');loadEntity()">${proj['Project Name']}</button></div>` : ''}
-          ${reac['Site Name'] ? `<div style="font-size:13px;color:var(--muted);margin-top:4px">Site: ${reac['Site Name']}</div>` : ''}
-          ${reac['Target Operation'] ? `<div style="font-size:13px;color:var(--muted);margin-top:4px">Target: ${reac['Target Operation']}</div>` : ''}
+          <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--muted);margin-top:10px">
+            ${reac['Site Name'] ? `<span><strong style="color:var(--slate)">Site:</strong> ${reac['Site Name']}</span>` : ''}
+            ${reac['Target Operation'] ? `<span><strong style="color:var(--slate)">Target:</strong> ${reac['Target Operation']}</span>` : ''}
+          </div>
         </div>
         <div class="entity-stat-row">
           ${capGW > 0 ? `<div class="entity-stat"><div class="entity-stat-n">${capGW.toFixed(2)}</div><div class="entity-stat-l">GW capacity</div></div>` : ''}
-          <div class="entity-stat"><div class="entity-stat-n">${sortedDeals.length}</div><div class="entity-stat-l">Deals</div></div>
+          <div class="entity-stat"><div class="entity-stat-n">${sortedDeals.length}</div><div class="entity-stat-l">Reactor deals</div></div>
         </div>
-      </div>`;
+      </div>
+      ${hierarchyHtml}
+      ${renderTimeline(sortedDeals)}
+    </div>`;
 
-  html += renderTimeline(sortedDeals) + '</div>';
   document.getElementById('explorer-content').innerHTML = html;
 }
 
