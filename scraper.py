@@ -98,57 +98,52 @@ FEEDS = [
 
     # ── Tier 1: Industry trade press ─────────────────────────────────────────
     {"name": "World Nuclear News",      "url": "https://www.world-nuclear-news.org/rss"},
-    {"name": "ANS Nuclear Newswire",    "url": "https://www.ans.org/rss/news/"},
-    {"name": "NEI News",                "url": "https://www.nei.org/rss/news"},
+    {"name": "ANS Nuclear Newswire",    "url": "https://www.ans.org/news/feed"},
+    {"name": "NEI News",                "url": "https://www.nei.org/rss"},
     {"name": "Power Magazine – Nuclear","url": "https://www.powermag.com/category/nuclear/feed/"},
     {"name": "Power Engineering",       "url": "https://www.power-eng.com/feed/"},
     {"name": "Utility Dive",            "url": "https://www.utilitydive.com/feeds/news/"},
     {"name": "Neutron Bytes",           "url": "https://neutronbytes.com/feed/"},
     {"name": "Nuclear Engineering Intl","url": "https://www.neimagazine.com/rss"},
-    {"name": "S&P Global Energy",       "url": "https://www.spglobal.com/commodityinsights/en/rss-feed/energy"},
-    {"name": "Reuters Business News",   "url": "https://feeds.reuters.com/reuters/businessNews"},
-    {"name": "Bloomberg Energy",        "url": "https://feeds.bloomberg.com/energy/news.rss"},
-    {"name": "E&E News Energy",         "url": "https://www.eenews.net/rss/energywire.rss"},
     {"name": "Canary Media",            "url": "https://www.canarymedia.com/rss"},
     {"name": "Latitude Media",          "url": "https://www.latitudemedia.com/feed"},
+    {"name": "Atomic Insights",         "url": "https://atomicinsights.com/feed"},
+    {"name": "NucNet",                  "url": "https://nucnet.org/feed.rss"},
 
     # ── Tier 2: Government & regulatory ──────────────────────────────────────
     {"name": "DOE Nuclear Energy",      "url": "https://www.energy.gov/ne/rss.xml"},
-    {"name": "DOE Office of Loan Programs","url": "https://www.energy.gov/lpo/rss.xml"},
-    {"name": "NRC News",                "url": "https://www.nrc.gov/public-involve/rss-feeds/nrc-news.xml"},
-    {"name": "NRC Press Releases",      "url": "https://www.nrc.gov/public-involve/rss-feeds/press-releases.xml"},
-    {"name": "IAEA News",               "url": "https://www.iaea.org/feeds/topical/nuclear-power.xml"},
-    {"name": "White House Energy",      "url": "https://www.whitehouse.gov/feed/"},
+    {"name": "DOE News",                "url": "https://www.energy.gov/news/rss.xml"},
+    {"name": "NRC News",                "url": "https://www.nrc.gov/reading-rm/doc-collections/news/rss.xml"},
+    {"name": "NRC Press Releases",      "url": "https://www.nrc.gov/reading-rm/doc-collections/press-releases/rss.xml"},
+    {"name": "IAEA Nuclear Power",      "url": "https://www.iaea.org/feeds/topical/nuclear-power.xml"},
+    {"name": "IAEA Newscenter",         "url": "https://www.iaea.org/newscenter/feed"},
 
-    # ── Tier 3: Company newsrooms (key players in our tracker) ───────────────
+    # ── Tier 3: Company newsrooms ─────────────────────────────────────────────
     # Developers / vendors
-    {"name": "TerraPower News",         "url": "https://www.terrapower.com/feed/"},
     {"name": "Holtec News",             "url": "https://holtecinternational.com/feed/"},
-    {"name": "Oklo News",               "url": "https://oklo.com/news-and-events/rss.xml"},
-    {"name": "X-energy News",           "url": "https://x-energy.com/feed/"},
-    {"name": "Kairos Power News",       "url": "https://kairospower.com/feed/"},
-    {"name": "GE Vernova News",         "url": "https://www.gevernova.com/rss"},
-    {"name": "Westinghouse News",       "url": "https://www.westinghousenuclear.com/rss"},
-    {"name": "Commonwealth Fusion",     "url": "https://cfs.energy/feed/"},
+    {"name": "NANO Nuclear IR",         "url": "https://ir.nanonuclearenergy.com/rss/news-releases.xml"},
     {"name": "Helion Energy",           "url": "https://www.helionenergy.com/feed/"},
-    {"name": "NuScale Power",           "url": "https://www.nuscalepower.com/rss"},
-    {"name": "NANO Nuclear",            "url": "https://ir.nanonuclearenergy.com/rss/news-releases.xml"},
+    {"name": "TerraPower News",         "url": "https://www.terrapower.com/news/feed/"},
+    {"name": "Kairos Power",            "url": "https://kairospower.com/news/feed/"},
+    {"name": "Oklo IR",                 "url": "https://ir.oklo.com/news-releases/rss"},
+    {"name": "X-energy News",           "url": "https://x-energy.com/news/feed/"},
+    {"name": "Commonwealth Fusion",     "url": "https://cfs.energy/news/feed/"},
+    {"name": "GE Vernova Newsroom",     "url": "https://www.gevernova.com/news/press-releases/rss"},
+    {"name": "Westinghouse Newsroom",   "url": "https://www.westinghousenuclear.com/about/news/rss"},
+    {"name": "NuScale IR",              "url": "https://ir.nuscalepower.com/news-releases/rss"},
     # Utilities
-    {"name": "TVA Newsroom",            "url": "https://www.tva.com/rss/newsroom"},
-    {"name": "Constellation Energy",    "url": "https://www.constellationenergy.com/rss/newsroom.xml"},
-    {"name": "Dominion Energy News",    "url": "https://www.dominionenergy.com/rss/news"},
+    {"name": "TVA Newsroom",            "url": "https://www.tva.com/rss/news"},
     {"name": "Duke Energy News",        "url": "https://news.duke-energy.com/rss/all.rss"},
-    {"name": "NextEra Energy News",     "url": "https://www.nexteraenergy.com/rss"},
-    {"name": "Exelon / Constellation",  "url": "https://www.exeloncorp.com/rss/news.xml"},
-    {"name": "Southern Nuclear",        "url": "https://www.southerncompany.com/rss/news.xml"},
-    {"name": "Xcel Energy News",        "url": "https://www.xcelenergy.com/rss/news"},
-    # Tech / hyperscalers (press release feeds)
-    {"name": "Amazon Sustainability",   "url": "https://www.aboutamazon.com/rss/news"},
+    {"name": "Dominion Energy News",    "url": "https://news.dominionenergy.com/press-releases/rss"},
+    {"name": "Constellation IR",        "url": "https://ir.constellationenergy.com/news-releases/rss"},
+    {"name": "Southern Company News",   "url": "https://www.southerncompany.com/news/rss"},
+    # Tech / hyperscalers
     {"name": "Google Blog",             "url": "https://blog.google/rss/"},
     {"name": "Microsoft On the Issues", "url": "https://blogs.microsoft.com/on-the-issues/feed/"},
     {"name": "Meta Newsroom",           "url": "https://about.fb.com/rss/"},
-    # Finance / investment
-    {"name": "Brookfield News",         "url": "https://bep.brookfield.com/rss/news-releases.xml"},
+    {"name": "Amazon About",            "url": "https://www.aboutamazon.com/news/rss"},
+    # Finance
+    {"name": "Brookfield IR",           "url": "https://bam.brookfield.com/news-releases/rss"},
 ]
 
 # Keywords that flag an article as a potential deal
@@ -643,10 +638,16 @@ def run():
         # ── Pass 2: extract structured fields ────────────────────
         result = pass2_extract(client, article, ref)
 
+        # If Claude returned a list instead of a dict, unwrap or discard
+        if isinstance(result, list):
+            result = result[0] if result and isinstance(result[0], dict) else None
+
         # Escalate to stronger model if low confidence
         if result and result.get("confidence") == "Low":
             print(f"    ↑ Escalating to {ESCALATION_MODEL} (low confidence)")
             result_escalated = pass2_extract(client, article, ref, model=ESCALATION_MODEL)
+            if isinstance(result_escalated, list):
+                result_escalated = result_escalated[0] if result_escalated and isinstance(result_escalated[0], dict) else None
             if result_escalated:
                 result = result_escalated
 
