@@ -1133,9 +1133,6 @@ function backToList() {
 function selectEntity(id, mode) {
   if (mode) setMode(mode);
   document.getElementById('explorer-select').value = id;
-  // Hide the grid, show the detail
-  document.getElementById('entity-list').style.display = 'none';
-  document.getElementById('explorer-content').style.display = 'block';
   loadEntity();
   setTimeout(() => document.getElementById('explorer-content').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 }
@@ -1144,8 +1141,12 @@ function loadEntity() {
   const id = document.getElementById('explorer-select').value;
   if (!id) {
     document.getElementById('explorer-content').style.display = 'none';
+    document.getElementById('entity-list').style.display = 'block';
     return;
   }
+  // Hide grid, show detail
+  document.getElementById('entity-list').style.display = 'none';
+  document.getElementById('explorer-content').style.display = 'block';
   if (explorerMode === 'program') renderProgramView(id);
   else if (explorerMode === 'project') renderProjectView(id);
   else renderReactorView(id);
