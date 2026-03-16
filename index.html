@@ -919,7 +919,6 @@ function renderFeed() {
   }
 
   const grid = '90px 110px 1fr 1.8fr 110px 110px 80px 36px';
-  const fSearch = (document.getElementById('f-search').value || '').toLowerCase().trim();
   body.innerHTML = filtered.map((a, i) => {
     const rawCap = (a['Capital Value (low)'] || '').replace(/,/g, '');
     const capNum = parseFloat(rawCap);
