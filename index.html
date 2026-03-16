@@ -481,12 +481,7 @@ nav {
     <!-- Full entity list grid -->
     <div id="entity-list" style="margin-bottom:20px"></div>
 
-    <div id="explorer-content">
-      <div class="no-selection">
-        <div class="no-selection-icon">🔍</div>
-        <div class="no-selection-text">Select a program, project, or reactor above to explore its announcement timeline.</div>
-      </div>
-    </div>
+    <div id="explorer-content" style="display:none"></div>
 
     <div class="footer" style="margin-top:24px">
       <span class="footer-left">EFI Foundation · Nuclear Scaling Initiative</span>
@@ -937,7 +932,7 @@ function renderFeed() {
         <div style="font-size:11px;color:var(--muted)">${a._entityType||''}</div>
       </div>
       <span class="cell" style="font-size:12px">${capStr}</span>
-      <span class="cell">${a['Source URL'] ? `<a href="${a['Source URL']}" target="_blank" rel="noreferrer" class="cell-link" title="Source">↗</a>` : ''}</span>
+      <span class="cell">${a['Source URL'] ? `<a href="${encodeURI(a['Source URL'].trim())}" target="_blank" rel="noreferrer noopener" class="cell-link" style="font-size:12px;white-space:nowrap">Source ↗</a>` : ''}</span>
     </div>`;
   }).join('');
 }
@@ -1080,7 +1075,7 @@ function setMode(mode) {
 
   let items = [];
   if (mode === 'program') items = programs.map(p => ({ id: p['Program ID'], name: p['Program Name'], sub: p['Program Type'], meta: p['Lead Entity'], status: p['Status'] }));
-  if (mode === 'project') items = projects.map(p => ({ id: p['Project ID'], name: p['Project Name'], sub: p['Project Type'], meta: `${p['Primary Lead']||''} · ${p['State']||''}`, status: p['Status'], tech: p['Reactor Technology'] }));
+  if (mode === 'project') items = projects.map(p => ({ id: p['Project ID'], name: p['Project Name'], sub: p['Project Type'], meta: `${p['Primary Lead']||''} · ${p['State']||''}`, status: p['Status'] }));
   if (mode === 'reactor') items = reactors.map(r => {
     const proj = r['Project ID (opt.)'] ? projectMap[r['Project ID (opt.)']] : null;
     return { id: r['Reactor ID'], name: r['Unit Name / Number'], sub: r['Technology'], meta: proj ? proj['Project Name'] : r['Site Name']||'Standalone', status: r['Status'] };
@@ -1089,14 +1084,9 @@ function setMode(mode) {
   items.sort((a,b) => a.name.localeCompare(b.name));
   sel.innerHTML += items.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
 
-  // Render full clickable entity list
+  // Show grid, hide detail
   renderEntityList(items, mode);
-
-  document.getElementById('explorer-content').innerHTML = `
-    <div class="no-selection">
-      <div class="no-selection-icon">🔍</div>
-      <div class="no-selection-text">Select a ${mode} above or click a card below to explore its announcement timeline.</div>
-    </div>`;
+  document.getElementById('explorer-content').style.display = 'none';
 }
 
 function renderEntityList(items, mode) {
@@ -1112,6 +1102,8 @@ function renderEntityList(items, mode) {
     dealCounts[item.id] = count;
   });
 
+  const modeLabel = mode.charAt(0).toUpperCase() + mode.slice(1);
+  listEl.style.display = 'block';
   listEl.innerHTML = `
     <div style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:20px 24px;box-shadow:0 1px 4px rgba(0,0,0,0.04)">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.14em;color:var(--muted);font-weight:700;margin-bottom:14px">${items.length} ${mode}${items.length!==1?'s':''}</div>
@@ -1132,21 +1124,28 @@ function renderEntityList(items, mode) {
     </div>`;
 }
 
+function backToList() {
+  document.getElementById('explorer-select').value = '';
+  document.getElementById('explorer-content').style.display = 'none';
+  document.getElementById('entity-list').style.display = 'block';
+}
+
 function selectEntity(id, mode) {
   if (mode) setMode(mode);
   document.getElementById('explorer-select').value = id;
+  // Hide the grid, show the detail
+  document.getElementById('entity-list').style.display = 'none';
+  document.getElementById('explorer-content').style.display = 'block';
   loadEntity();
-  // Smooth scroll to detail
   setTimeout(() => document.getElementById('explorer-content').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 }
 
 function loadEntity() {
   const id = document.getElementById('explorer-select').value;
   if (!id) {
-    document.getElementById('explorer-content').innerHTML = `<div class="no-selection"><div class="no-selection-icon">🔍</div><div class="no-selection-text">Select an entity above.</div></div>`;
+    document.getElementById('explorer-content').style.display = 'none';
     return;
   }
-
   if (explorerMode === 'program') renderProgramView(id);
   else if (explorerMode === 'project') renderProjectView(id);
   else renderReactorView(id);
@@ -1160,6 +1159,9 @@ function renderProgramView(progId) {
   const sortedDeals = [...linkedDeals].sort((a,b) => parseDate(b['Announcement Date']) - parseDate(a['Announcement Date']));
 
   let html = `
+    <div style="margin-bottom:12px">
+      <button onclick="backToList()" style="background:none;border:none;color:var(--blue);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;padding:0">← All Programs</button>
+    </div>
     <div class="entity-detail">
       <div class="entity-header">
         <div class="entity-header-left">
@@ -1192,7 +1194,7 @@ function renderProgramView(progId) {
       </div>`;
   }
 
-  html += renderTimeline(sortedDeals) + '</div>';
+  html += renderTimeline(sortedDeals) + '</div></div>';
   document.getElementById('explorer-content').innerHTML = html;
 }
 
@@ -1209,13 +1211,11 @@ function renderProjectView(projId) {
   const capGW = capUnit==='MW' ? capNum/1000 : capUnit==='TW' ? capNum*1000 : capNum;
 
   let html = `
+    <div style="margin-bottom:12px">
+      <button onclick="backToList()" style="background:none;border:none;color:var(--blue);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;padding:0">← All Projects</button>
+    </div>
     <div class="entity-detail">
       <div class="entity-header">
-        <div class="entity-header-left">
-          <h2>${proj['Project Name']}</h2>
-          <div class="entity-meta">
-            <span class="badge b-entity">${proj['Lead Entity Type']||''}</span>
-            <span class="badge b-entity">${proj['Project Type']||''}</span>
             <span class="badge b-entity">${proj['State']||''}</span>
             <span class="badge ${proj['Status']==='Active'?'b-deployment':'b-low'}">${proj['Status']||''}</span>
           </div>
@@ -1236,7 +1236,7 @@ function renderProjectView(projId) {
         </div>
       </div>`;
 
-  html += renderTimeline(sortedDeals) + '</div>';
+  html += renderTimeline(sortedDeals) + '</div></div>';
   document.getElementById('explorer-content').innerHTML = html;
 }
 
@@ -1303,10 +1303,11 @@ function renderReactorView(reacId) {
   }
 
   let html = `
+    <div style="margin-bottom:12px">
+      <button onclick="backToList()" style="background:none;border:none;color:var(--blue);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;padding:0">← All Reactors</button>
+    </div>
     <div class="entity-detail">
       <div class="entity-header">
-        <div class="entity-header-left">
-          <h2>${reac['Unit Name / Number']}</h2>
           <div class="entity-meta">
             <span class="badge b-entity">${reac['Technology']||''}</span>
             ${reac['State'] ? `<span class="badge b-entity">${reac['State']}</span>` : ''}
@@ -1324,7 +1325,7 @@ function renderReactorView(reacId) {
       </div>
       ${hierarchyHtml}
       ${renderTimeline(sortedDeals)}
-    </div>`;
+    </div></div>`;
 
   document.getElementById('explorer-content').innerHTML = html;
 }
