@@ -6,98 +6,246 @@
 <title>Nuclear Deal Tracker — EFI Foundation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Source Sans 3', sans-serif; background: #f4f7fa; color: #1a2840; min-height: 100vh; }
-  /* ── Nav ── */
-  nav { background: #fff; border-bottom: 1px solid #dce8f0; padding: 0 48px; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 200; }
-  .nav-logo { display: flex; align-items: center; gap: 10px; }
-  .nav-icon { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg,#1a5fa8,#0a3060); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
-  .nav-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #1a5fa8; text-transform: uppercase; line-height: 1.2; }
-  .nav-sub { font-size: 9px; letter-spacing: 0.1em; color: #8a9db5; text-transform: uppercase; }
-  .nav-label { font-size: 12px; color: #8a9db5; letter-spacing: 0.04em; }
-  /* ── Hero ── */
-  .hero { background: linear-gradient(135deg,#05152e 0%,#0a2a5a 55%,#0d3878 100%); padding: 60px 48px 52px; position: relative; overflow: hidden; }
-  .hero-watermark { position: absolute; right: -60px; top: -30px; font-family: 'Playfair Display', serif; font-size: 240px; font-weight: 800; color: rgba(255,255,255,0.025); line-height: 1; user-select: none; pointer-events: none; white-space: nowrap; }
-  .hero-inner { max-width: 1280px; margin: 0 auto; }
-  .hero-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: #5aabff; font-weight: 700; margin-bottom: 14px; }
-  .hero h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 50px; font-weight: 700; color: #fff; line-height: 1.15; margin-bottom: 18px; max-width: 660px; }
-  .hero p { font-size: 16px; color: #a8c4e0; line-height: 1.75; max-width: 540px; margin-bottom: 36px; }
-  .stats { display: flex; gap: 12px; flex-wrap: wrap; }
-  .stat-pill { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.13); border-radius: 99px; padding: 8px 20px; display: flex; align-items: center; gap: 10px; }
-  .stat-n { font-size: 22px; font-weight: 700; color: #fff; font-family: 'Playfair Display', serif; }
-  .stat-l { font-size: 12px; color: #a8c4e0; }
-  /* ── Content ── */
-  .content { max-width: 1280px; margin: 0 auto; padding: 40px 48px 80px; }
-  /* ── Filters ── */
-  .filters { background: #fff; border: 1px solid #dce8f0; border-radius: 4px; padding: 22px 28px; margin-bottom: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
-  .filter-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: #6b7c93; font-weight: 700; margin-bottom: 14px; }
-  .filter-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
-  .sel-wrap label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: #6b7c93; font-weight: 700; margin-bottom: 4px; }
-  .sel-wrap select { width: 100%; border: 1px solid #c8d8e8; border-radius: 6px; padding: 7px 28px 7px 10px; font-size: 13px; color: #1a2840; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 5 5-5' stroke='%236b7c93' stroke-width='1.5' fill='none'/%3E%3C/svg%3E") no-repeat right 10px center; appearance: none; outline: none; cursor: pointer; font-family: inherit; }
-  /* ── Table ── */
-  .table-wrap { background: #fff; border: 1px solid #dce8f0; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
-  .table-header { padding: 14px 28px; border-bottom: 2px solid #1a5fa8; display: flex; align-items: center; justify-content: space-between; }
-  .table-count { font-size: 13px; color: #3a5268; font-weight: 600; }
-  .legend { display: flex; gap: 16px; }
-  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #6b7c93; }
-  .legend-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-  .col-heads { display: grid; grid-template-columns: var(--grid); padding: 10px 28px; background: #f4f8fc; border-bottom: 1px solid #dce8f0; }
-  .col-head { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: #6b7c93; font-weight: 700; }
-  .row { display: grid; grid-template-columns: var(--grid); padding: 16px 28px; border-bottom: 1px solid #edf2f8; align-items: center; transition: background 0.1s; }
-  .row:hover { background: #f8fbfe; }
-  .row:last-child { border-bottom: none; }
-  .cell { font-size: 13px; color: #3a5268; }
-  .cell-date { font-size: 12px; color: #8a9db5; font-variant-numeric: tabular-nums; }
-  .lbtn { background: none; border: none; padding: 0; cursor: pointer; color: #1a5fa8; font-size: 13px; text-decoration: underline; text-decoration-color: rgba(26,95,168,0.5); transition: color 0.12s; text-align: left; font-family: inherit; }
-  .lbtn:hover { color: #0f3d78; text-decoration-color: #0f3d78; }
-  .empty { padding: 48px 28px; text-align: center; font-size: 14px; color: #8a9db5; }
-  /* ── Badge ── */
-  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
-  .badge-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-  .sig-deployment      { color: #1a6b3a; background: #e8f5ee; }
-  .sig-deployment .badge-dot      { background: #2e9e57; }
-  .sig-market          { color: #7a4a00; background: #fef3e0; }
-  .sig-market .badge-dot          { background: #d4820a; }
-  .sig-signaling       { color: #1a3a5c; background: #e8f0f8; }
-  .sig-signaling .badge-dot       { background: #4a7aaa; }
-  /* ── Modal ── */
-  .modal-overlay { position: fixed; inset: 0; background: rgba(5,15,35,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(3px); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
-  .modal-overlay.open { opacity: 1; pointer-events: all; }
-  .modal-box { background: #fff; border-radius: 4px; padding: 40px 44px; width: 100%; max-width: 560px; box-shadow: 0 24px 64px rgba(0,0,0,0.22); border: 1px solid #dce8f0; max-height: 88vh; overflow-y: auto; transform: translateY(16px); transition: transform 0.2s; }
-  .modal-overlay.open .modal-box { transform: translateY(0); }
-  .modal-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.16em; color: #1a5fa8; font-weight: 700; margin-bottom: 8px; }
-  .modal-title { font-family: 'Playfair Display', Georgia, serif; font-size: 24px; font-weight: 700; color: #0a1828; line-height: 1.25; margin-bottom: 24px; }
-  .drow { display: grid; grid-template-columns: 140px 1fr; gap: 16px; padding: 10px 0; border-bottom: 1px solid #edf2f8; }
-  .drow-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: #6b7c93; font-weight: 700; padding-top: 1px; }
-  .drow-val { font-size: 14px; color: #1a2840; line-height: 1.5; }
-  .modal-desc { margin-top: 20px; font-size: 14px; color: #3a5268; line-height: 1.75; }
-  .modal-link { display: inline-block; margin-top: 16px; font-size: 13px; color: #1a5fa8; }
-  .modal-footer { margin-top: 28px; display: flex; justify-content: flex-end; }
-  .modal-close { background: none; border: 1px solid #c8d8e8; border-radius: 99px; padding: 7px 20px; font-size: 13px; color: #3a5268; cursor: pointer; font-family: inherit; }
-  .modal-close:hover { background: #f4f7fa; }
-  /* ── Loading ── */
-  .loading { padding: 80px 28px; text-align: center; }
-  .loading-spinner { width: 36px; height: 36px; border: 3px solid #dce8f0; border-top-color: #1a5fa8; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-text { font-size: 14px; color: #8a9db5; }
-  .error-msg { padding: 40px 28px; text-align: center; font-size: 14px; color: #c0392b; }
-  /* ── Footer ── */
-  .footer { margin-top: 32px; padding-top: 24px; border-top: 1px solid #dce8f0; display: flex; justify-content: space-between; align-items: center; }
-  .footer-left { font-size: 12px; color: #8a9db5; }
-  .footer-link { font-size: 12px; color: #1a5fa8; text-decoration: none; }
-  .footer-link:hover { text-decoration: underline; }
-  @media (max-width: 900px) {
-    nav, .hero, .content { padding-left: 20px; padding-right: 20px; }
-    .filter-grid { grid-template-columns: repeat(2, 1fr); }
-    .hero h1 { font-size: 32px; }
-    .col-heads, .row { display: none; }
-    .mobile-cards { display: block; }
-  }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --navy:    #05152e;
+  --navy2:   #0a2a5a;
+  --blue:    #1a5fa8;
+  --blue2:   #2d7dd2;
+  --sky:     #5aabff;
+  --ice:     #dce8f0;
+  --slate:   #3a5268;
+  --muted:   #8a9db5;
+  --bg:      #f4f7fa;
+  --white:   #ffffff;
+  --border:  #dce8f0;
+  /* significance colors */
+  --c-deploy:  #1e6b3c; --bg-deploy:  #e6f4ec;
+  --c-finance: #7b3f00; --bg-finance: #fef0e0;
+  --c-offtake: #1a5fa8; --bg-offtake: #e8f0fb;
+  --c-market:  #6b3080; --bg-market:  #f4eafb;
+  --c-signal:  #2a5a6b; --bg-signal:  #e4f3f8;
+  --c-policy:  #555;    --bg-policy:  #f0f0f0;
+  /* impact */
+  --c-high:   #b91c1c; --bg-high:   #fee2e2;
+  --c-medium: #b45309; --bg-medium: #fef3c7;
+  --c-low:    #374151; --bg-low:    #f3f4f6;
+}
+body { font-family: 'Source Sans 3', sans-serif; background: var(--bg); color: #1a2840; min-height: 100vh; }
+
+/* ── NAV ── */
+nav {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  padding: 0 48px;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 60px; position: sticky; top: 0; z-index: 300;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+}
+.nav-logo { display: flex; align-items: center; gap: 10px; }
+.nav-icon { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg,#1a5fa8,#0a3060); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+.nav-title { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--blue); text-transform: uppercase; line-height: 1.2; }
+.nav-sub   { font-size: 9px; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+.nav-right { display: flex; align-items: center; gap: 20px; }
+.nav-tabs  { display: flex; gap: 2px; background: var(--bg); border-radius: 8px; padding: 3px; }
+.nav-tab   { padding: 6px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; border: none; background: none; transition: all 0.15s; letter-spacing: 0.02em; font-family: inherit; }
+.nav-tab.active { background: var(--white); color: var(--blue); box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+.review-badge { background: #fee2e2; color: #b91c1c; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; display: none; }
+.review-badge.show { display: inline-block; }
+
+/* ── HERO ── */
+.hero {
+  background: linear-gradient(135deg, #05152e 0%, #0a2a5a 55%, #0d3878 100%);
+  padding: 52px 48px 44px; position: relative; overflow: hidden;
+}
+.hero-watermark {
+  position: absolute; right: -40px; top: -20px;
+  font-family: 'Playfair Display', serif; font-size: 200px; font-weight: 800;
+  color: rgba(255,255,255,0.03); line-height: 1; user-select: none; pointer-events: none; white-space: nowrap;
+}
+.hero-inner { max-width: 1280px; margin: 0 auto; }
+.hero-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--sky); font-weight: 700; margin-bottom: 10px; }
+.hero h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 42px; font-weight: 700; color: #fff; line-height: 1.15; margin-bottom: 12px; }
+.hero-sub { font-size: 15px; color: #a8c4e0; line-height: 1.7; max-width: 520px; margin-bottom: 32px; }
+
+/* ── KPI CARDS ── */
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr) 2fr; gap: 12px; }
+.kpi-card {
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.13);
+  border-radius: 10px; padding: 16px 20px; transition: background 0.15s;
+}
+.kpi-card:hover { background: rgba(255,255,255,0.1); }
+.kpi-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: #7a9abf; font-weight: 700; margin-bottom: 6px; }
+.kpi-value { font-size: 28px; font-weight: 700; color: #fff; font-family: 'Playfair Display', serif; line-height: 1; }
+.kpi-sub   { font-size: 11px; color: #7a9abf; margin-top: 3px; }
+.kpi-sig-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.kpi-sig-item { display: flex; flex-direction: column; gap: 2px; }
+.kpi-sig-n    { font-size: 18px; font-weight: 700; color: #fff; font-family: 'Playfair Display', serif; line-height: 1; }
+.kpi-sig-l    { font-size: 10px; color: #7a9abf; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── CONTENT ── */
+.content { max-width: 1280px; margin: 0 auto; padding: 32px 48px 80px; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* ── FILTERS ── */
+.filters {
+  background: var(--white); border: 1px solid var(--border); border-radius: 8px;
+  padding: 20px 24px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.filter-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.filter-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); font-weight: 700; }
+.filter-actions { display: flex; gap: 8px; align-items: center; }
+.btn-reset { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 5px 14px; font-size: 12px; color: var(--muted); cursor: pointer; font-family: inherit; transition: all 0.12s; }
+.btn-reset:hover { border-color: var(--blue); color: var(--blue); }
+.btn-download { background: var(--blue); border: none; border-radius: 6px; padding: 6px 16px; font-size: 12px; font-weight: 600; color: #fff; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 6px; transition: background 0.12s; }
+.btn-download:hover { background: var(--navy2); }
+.filter-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+.sel-wrap label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+.sel-wrap select, .sel-wrap input[type=date] {
+  width: 100%; border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 10px; font-size: 13px; color: #1a2840; background: var(--white);
+  outline: none; cursor: pointer; font-family: inherit; transition: border-color 0.12s;
+}
+.sel-wrap select { padding-right: 28px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 5 5-5' stroke='%236b7c93' stroke-width='1.5' fill='none'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; appearance: none; }
+.sel-wrap select:focus, .sel-wrap input:focus { border-color: var(--blue); }
+.filter-row2 { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
+.toggle-wrap { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.toggle-wrap input { display: none; }
+.toggle-track { width: 34px; height: 18px; background: var(--border); border-radius: 99px; position: relative; transition: background 0.15s; flex-shrink: 0; cursor: pointer; }
+.toggle-thumb { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: #fff; border-radius: 50%; transition: transform 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.toggle-wrap input:checked + .toggle-track { background: var(--blue); }
+.toggle-wrap input:checked + .toggle-track .toggle-thumb { transform: translateX(16px); }
+.toggle-label { font-size: 12px; color: var(--slate); font-weight: 600; }
+
+/* ── TABLE ── */
+.table-wrap { background: var(--white); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+.table-toolbar { padding: 14px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: #fafcff; }
+.table-count { font-size: 13px; color: var(--slate); font-weight: 600; }
+.col-heads { display: grid; grid-template-columns: var(--tgrid); padding: 10px 24px; background: var(--bg); border-bottom: 1px solid var(--border); }
+.col-head { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 4px; }
+.col-head:hover { color: var(--blue); }
+.col-head .sort-arrow { opacity: 0.3; font-size: 9px; }
+.col-head.sorted .sort-arrow { opacity: 1; color: var(--blue); }
+.trow { display: grid; grid-template-columns: var(--tgrid); padding: 13px 24px; border-bottom: 1px solid #edf2f8; align-items: start; transition: background 0.1s; }
+.trow:hover { background: #f8fbfe; }
+.trow:last-child { border-bottom: none; }
+.cell { font-size: 13px; color: var(--slate); line-height: 1.4; }
+.cell-date { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cell-summary { font-size: 13px; color: var(--slate); line-height: 1.5; }
+.cell-link { color: var(--blue); text-decoration: none; font-size: 12px; }
+.cell-link:hover { text-decoration: underline; }
+.cell-id { font-size: 11px; color: var(--muted); font-family: monospace; }
+.lbtn { background: none; border: none; padding: 0; cursor: pointer; color: var(--blue); font-size: 13px; font-weight: 600; text-align: left; font-family: inherit; transition: color 0.12s; line-height: 1.4; }
+.lbtn:hover { color: var(--navy2); text-decoration: underline; }
+.intl-flag { font-size: 10px; color: var(--muted); background: #f0f0f0; border-radius: 3px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
+.empty { padding: 48px 24px; text-align: center; font-size: 14px; color: var(--muted); }
+.loading { padding: 60px 24px; text-align: center; }
+.spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 14px; color: var(--muted); }
+.error-msg { padding: 40px 24px; text-align: center; font-size: 14px; color: #b91c1c; }
+
+/* ── BADGES ── */
+.badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.badge-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.b-deployment  { color: var(--c-deploy);  background: var(--bg-deploy); }
+.b-deployment .badge-dot  { background: var(--c-deploy); }
+.b-financing   { color: var(--c-finance); background: var(--bg-finance); }
+.b-financing .badge-dot   { background: var(--c-finance); }
+.b-offtake     { color: var(--c-offtake); background: var(--bg-offtake); }
+.b-offtake .badge-dot     { background: var(--c-offtake); }
+.b-market      { color: var(--c-market);  background: var(--bg-market); }
+.b-market .badge-dot      { background: var(--c-market); }
+.b-signaling   { color: var(--c-signal);  background: var(--bg-signal); }
+.b-signaling .badge-dot   { background: var(--c-signal); }
+.b-policy      { color: var(--c-policy);  background: var(--bg-policy); }
+.b-policy .badge-dot      { background: var(--c-policy); }
+.b-high   { color: var(--c-high);   background: var(--bg-high); }
+.b-medium { color: var(--c-medium); background: var(--bg-medium); }
+.b-low    { color: var(--c-low);    background: var(--bg-low); }
+.b-review { color: #b91c1c; background: #fee2e2; }
+.b-entity { color: var(--slate); background: var(--bg); border: 1px solid var(--border); }
+
+/* ── MODAL ── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(5,15,35,0.55); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal-box { background: var(--white); border-radius: 10px; padding: 36px 40px; width: 100%; max-width: 580px; box-shadow: 0 24px 60px rgba(0,0,0,0.2); border: 1px solid var(--border); max-height: 90vh; overflow-y: auto; transform: translateY(12px); transition: transform 0.2s; }
+.modal-overlay.open .modal-box { transform: translateY(0); }
+.modal-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--blue); font-weight: 700; margin-bottom: 6px; }
+.modal-title { font-family: 'Playfair Display', Georgia, serif; font-size: 22px; font-weight: 700; color: #0a1828; line-height: 1.25; margin-bottom: 20px; }
+.drow { display: grid; grid-template-columns: 130px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px solid #edf2f8; align-items: start; }
+.drow:last-of-type { border-bottom: none; }
+.drow-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 700; padding-top: 2px; }
+.drow-val { font-size: 14px; color: #1a2840; line-height: 1.5; word-break: break-word; }
+.modal-desc { margin-top: 16px; font-size: 14px; color: var(--slate); line-height: 1.75; padding-top: 16px; border-top: 1px solid var(--border); }
+.modal-link { display: inline-flex; align-items: center; gap: 5px; margin-top: 14px; font-size: 13px; color: var(--blue); font-weight: 600; text-decoration: none; }
+.modal-link:hover { text-decoration: underline; }
+.modal-footer { margin-top: 24px; display: flex; justify-content: flex-end; }
+.btn-close { background: none; border: 1px solid var(--border); border-radius: 99px; padding: 7px 20px; font-size: 13px; color: var(--slate); cursor: pointer; font-family: inherit; transition: all 0.12s; }
+.btn-close:hover { background: var(--bg); border-color: var(--blue); color: var(--blue); }
+
+/* ── TAB 2: ENTITY EXPLORER ── */
+.explorer-controls { background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+.mode-tabs { display: flex; gap: 4px; background: var(--bg); border-radius: 8px; padding: 3px; border: 1px solid var(--border); }
+.mode-tab { padding: 7px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; border: none; background: none; transition: all 0.15s; font-family: inherit; }
+.mode-tab.active { background: var(--white); color: var(--blue); box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+.explorer-select-wrap { flex: 1; min-width: 200px; max-width: 380px; }
+.explorer-select-wrap label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+.explorer-select-wrap select { width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 8px 32px 8px 12px; font-size: 13px; color: #1a2840; background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 5 5-5' stroke='%236b7c93' stroke-width='1.5' fill='none'/%3E%3C/svg%3E") no-repeat right 10px center; appearance: none; outline: none; font-family: inherit; }
+.entity-detail { background: var(--white); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+.entity-header { padding: 24px 28px; background: linear-gradient(135deg, #f8fbff, #f0f6ff); border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.entity-header-left h2 { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: #0a1828; margin-bottom: 8px; }
+.entity-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+.entity-stat-row { display: flex; gap: 24px; margin-top: 12px; flex-wrap: wrap; }
+.entity-stat { text-align: center; }
+.entity-stat-n { font-size: 20px; font-weight: 700; color: var(--blue); font-family: 'Playfair Display', serif; }
+.entity-stat-l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.timeline-section { padding: 0; }
+.timeline-header { padding: 14px 28px; border-bottom: 1px solid var(--border); background: var(--bg); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; }
+.timeline-item { display: flex; gap: 16px; padding: 16px 28px; border-bottom: 1px solid #edf2f8; align-items: flex-start; transition: background 0.1s; }
+.timeline-item:hover { background: #f8fbfe; }
+.timeline-item:last-child { border-bottom: none; }
+.timeline-dot-col { display: flex; flex-direction: column; align-items: center; padding-top: 4px; }
+.timeline-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.timeline-line { width: 1px; background: var(--border); flex: 1; min-height: 20px; margin-top: 4px; }
+.timeline-content { flex: 1; }
+.timeline-date { font-size: 11px; color: var(--muted); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.timeline-summary { font-size: 13px; color: var(--slate); line-height: 1.5; margin-bottom: 6px; }
+.timeline-meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.child-projects { padding: 16px 28px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.proj-card { border: 1px solid var(--border); border-radius: 8px; padding: 16px; cursor: pointer; transition: all 0.15s; background: var(--white); }
+.proj-card:hover { border-color: var(--blue); box-shadow: 0 2px 8px rgba(26,95,168,0.12); }
+.proj-card-name { font-size: 14px; font-weight: 700; color: #0a1828; margin-bottom: 6px; line-height: 1.3; }
+.proj-card-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+.proj-card-stat { font-size: 12px; color: var(--muted); margin-top: 8px; }
+.no-selection { padding: 60px 28px; text-align: center; }
+.no-selection-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
+.no-selection-text { font-size: 14px; color: var(--muted); }
+
+/* ── FOOTER ── */
+.footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.footer-left { font-size: 12px; color: var(--muted); }
+.footer-link { font-size: 12px; color: var(--blue); text-decoration: none; }
+.footer-link:hover { text-decoration: underline; }
+
+@media (max-width: 1024px) {
+  nav, .hero, .content { padding-left: 20px; padding-right: 20px; }
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .filter-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 700px) {
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+  .filter-grid { grid-template-columns: repeat(2, 1fr); }
+  .hero h1 { font-size: 28px; }
+}
 </style>
 </head>
 <body>
-<!-- Nav -->
+
+<!-- NAV -->
 <nav>
   <div class="nav-logo">
     <div class="nav-icon">⚛</div>
@@ -106,302 +254,767 @@
       <div class="nav-sub">Nuclear Scaling Initiative</div>
     </div>
   </div>
-  <span class="nav-label">Advanced Reactor Pipeline Tracker</span>
+  <div class="nav-right">
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('feed')">Intelligence Feed</button>
+      <button class="nav-tab" onclick="switchTab('explorer')">Entity Explorer</button>
+    </div>
+    <span class="review-badge" id="review-badge">— needs review</span>
+  </div>
 </nav>
-<!-- Hero -->
+
+<!-- HERO -->
 <div class="hero">
   <div class="hero-watermark">Nuclear</div>
   <div class="hero-inner">
     <div class="hero-eyebrow">Advanced Reactor Pipeline</div>
     <h1>Nuclear Deal Tracker</h1>
-    <p>Tracking commercialization milestones, partnerships, and deployment announcements across U.S. advanced nuclear reactor developers.</p>
-    <div class="stats" id="stats">
-      <div class="stat-pill"><span class="stat-n" id="stat-deploy">—</span><span class="stat-l">Deployment</span></div>
-      <div class="stat-pill"><span class="stat-n" id="stat-market">—</span><span class="stat-l">Market development</span></div>
-      <div class="stat-pill"><span class="stat-n" id="stat-signal">—</span><span class="stat-l">Signaling</span></div>
-      <div class="stat-pill"><span class="stat-n" id="stat-total">—</span><span class="stat-l">Total entries</span></div>
+    <p class="hero-sub">Tracking commercialization milestones, partnerships, and deployment announcements across U.S. advanced nuclear reactor developers.</p>
+    <div class="kpi-row" id="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">Capital Committed</div>
+        <div class="kpi-value" id="kpi-capital">—</div>
+        <div class="kpi-sub" id="kpi-capital-sub">USD millions</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Capacity Tracked</div>
+        <div class="kpi-value" id="kpi-capacity">—</div>
+        <div class="kpi-sub">GW across linked projects</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Announcements</div>
+        <div class="kpi-value" id="kpi-total">—</div>
+        <div class="kpi-sub" id="kpi-total-sub">in current filter</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Projects Tracked</div>
+        <div class="kpi-value" id="kpi-projects">—</div>
+        <div class="kpi-sub">across all programs</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">By Significance</div>
+        <div class="kpi-sig-grid" id="kpi-sig-grid">
+          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-deploy">—</span><span class="kpi-sig-l">Deployment</span></div>
+          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-finance">—</span><span class="kpi-sig-l">Financing</span></div>
+          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-offtake">—</span><span class="kpi-sig-l">Offtake</span></div>
+          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-market">—</span><span class="kpi-sig-l">Market dev</span></div>
+          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-signal">—</span><span class="kpi-sig-l">Signaling</span></div>
+          <div class="kpi-sig-item"><span class="kpi-sig-n" id="ks-policy">—</span><span class="kpi-sig-l">Policy/Reg</span></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
-<!-- Content -->
+
+<!-- CONTENT -->
 <div class="content">
-  <!-- Filters -->
-  <div class="filters">
-    <div class="filter-label">Filter Results</div>
-    <div class="filter-grid">
-      <div class="sel-wrap"><label>Company</label><select id="f-company"><option>All</option></select></div>
-      <div class="sel-wrap"><label>Reactor</label><select id="f-reactor"><option>All</option></select></div>
-      <div class="sel-wrap"><label>Project</label><select id="f-project"><option>All</option></select></div>
-      <div class="sel-wrap"><label>Partner</label><select id="f-partner"><option>All</option></select></div>
-      <div class="sel-wrap"><label>Significance</label><select id="f-sig"><option>All</option></select></div>
-    </div>
-  </div>
-  <!-- Table -->
-  <div class="table-wrap">
-    <div class="table-header">
-      <span class="table-count" id="table-count">Loading…</span>
-      <div class="legend">
-        <div class="legend-item"><span class="legend-dot" style="background:#2e9e57"></span>Deployment</div>
-        <div class="legend-item"><span class="legend-dot" style="background:#d4820a"></span>Market development</div>
-        <div class="legend-item"><span class="legend-dot" style="background:#4a7aaa"></span>Signaling</div>
+
+  <!-- TAB 1: INTELLIGENCE FEED -->
+  <div class="tab-pane active" id="tab-feed">
+    <div class="filters">
+      <div class="filter-top">
+        <span class="filter-label">Filter Results</span>
+        <div class="filter-actions">
+          <button class="btn-reset" onclick="resetFilters()">Reset filters</button>
+          <button class="btn-download" onclick="downloadExcel()">⬇ Download Excel</button>
+        </div>
+      </div>
+      <div class="filter-grid">
+        <div class="sel-wrap"><label>Significance</label><select id="f-sig"><option value="">All</option></select></div>
+        <div class="sel-wrap"><label>Deal Type</label><select id="f-type"><option value="">All</option></select></div>
+        <div class="sel-wrap"><label>Lead Entity Type</label><select id="f-entity"><option value="">All</option></select></div>
+        <div class="sel-wrap"><label>Location (State)</label><select id="f-state"><option value="">All</option></select></div>
+        <div class="sel-wrap"><label>Impact</label><select id="f-impact"><option value="">All</option></select></div>
+        <div class="sel-wrap"><label>Primary Lead</label><select id="f-lead"><option value="">All</option></select></div>
+      </div>
+      <div class="filter-row2">
+        <div class="sel-wrap" style="display:flex;gap:8px;align-items:flex-end">
+          <div><label>Date from</label><input type="date" id="f-date-from"></div>
+          <div><label>Date to</label><input type="date" id="f-date-to"></div>
+        </div>
+        <label class="toggle-wrap" style="margin-left:16px">
+          <input type="checkbox" id="f-review" onchange="renderFeed()">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          <span class="toggle-label">Needs Review only</span>
+        </label>
+        <label class="toggle-wrap" style="margin-left:12px">
+          <input type="checkbox" id="f-us-only" checked onchange="renderFeed()">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          <span class="toggle-label">US only</span>
+        </label>
       </div>
     </div>
-    <div class="col-heads" style="--grid: 1fr 0.85fr 1.2fr 1.5fr 0.75fr 0.9fr 1.1fr">
-      <div class="col-head">Company</div>
-      <div class="col-head">Reactor</div>
-      <div class="col-head">Project / Site</div>
-      <div class="col-head">Announcement</div>
-      <div class="col-head">Partners</div>
-      <div class="col-head">Date</div>
-      <div class="col-head">Significance</div>
-    </div>
-    <div id="table-body">
-      <div class="loading">
-        <div class="loading-spinner"></div>
-        <div class="loading-text">Loading data from Google Sheets…</div>
+
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <span class="table-count" id="table-count">Loading…</span>
+      </div>
+      <div class="col-heads" style="--tgrid: 90px 110px 1fr 1.8fr 110px 110px 80px 36px">
+        <div class="col-head sorted" data-col="date" onclick="sortBy('date')">Date <span class="sort-arrow">↓</span></div>
+        <div class="col-head" data-col="type" onclick="sortBy('type')">Type <span class="sort-arrow">↕</span></div>
+        <div class="col-head" data-col="sig" onclick="sortBy('sig')">Significance <span class="sort-arrow">↕</span></div>
+        <div class="col-head" data-col="summary" onclick="sortBy('summary')">Summary <span class="sort-arrow">↕</span></div>
+        <div class="col-head" data-col="entity" onclick="sortBy('entity')">Lead <span class="sort-arrow">↕</span></div>
+        <div class="col-head" data-col="capital" onclick="sortBy('capital')">Capital <span class="sort-arrow">↕</span></div>
+        <div class="col-head" data-col="impact" onclick="sortBy('impact')">Impact <span class="sort-arrow">↕</span></div>
+        <div class="col-head"></div>
+      </div>
+      <div id="table-body">
+        <div class="loading"><div class="spinner"></div><div class="loading-text">Loading data…</div></div>
       </div>
     </div>
+
+    <div class="footer">
+      <span class="footer-left">EFI Foundation · Nuclear Scaling Initiative · Updated daily via scraper</span>
+      <a href="https://efifoundation.org" target="_blank" rel="noreferrer" class="footer-link">efifoundation.org →</a>
+    </div>
   </div>
-  <!-- Footer -->
-  <div class="footer">
-    <span class="footer-left">EFI Foundation · Nuclear Scaling Initiative · Updated daily</span>
-    <a href="https://efifoundation.org" target="_blank" rel="noreferrer" class="footer-link">efifoundation.org →</a>
+
+  <!-- TAB 2: ENTITY EXPLORER -->
+  <div class="tab-pane" id="tab-explorer">
+    <div class="explorer-controls">
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);font-weight:700;margin-bottom:6px">View by</div>
+        <div class="mode-tabs">
+          <button class="mode-tab active" onclick="setMode('program')">Program</button>
+          <button class="mode-tab" onclick="setMode('project')">Project</button>
+          <button class="mode-tab" onclick="setMode('reactor')">Reactor</button>
+        </div>
+      </div>
+      <div class="explorer-select-wrap">
+        <label id="explorer-select-label">Select a Program</label>
+        <select id="explorer-select" onchange="loadEntity()">
+          <option value="">— choose one —</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="explorer-content">
+      <div class="no-selection">
+        <div class="no-selection-icon">🔍</div>
+        <div class="no-selection-text">Select a program, project, or reactor above to explore its announcement timeline.</div>
+      </div>
+    </div>
+
+    <div class="footer" style="margin-top:24px">
+      <span class="footer-left">EFI Foundation · Nuclear Scaling Initiative</span>
+      <a href="https://efifoundation.org" target="_blank" rel="noreferrer" class="footer-link">efifoundation.org →</a>
+    </div>
   </div>
-</div>
-<!-- Modal -->
+
+</div><!-- /content -->
+
+<!-- MODAL -->
 <div class="modal-overlay" id="modal-overlay">
-  <div class="modal-box" id="modal-box">
+  <div class="modal-box">
     <div class="modal-tag" id="modal-tag"></div>
     <div class="modal-title" id="modal-title"></div>
     <div id="modal-body"></div>
     <div class="modal-footer">
-      <button class="modal-close" id="modal-close-btn">Close</button>
+      <button class="btn-close" onclick="closeModal()">Close</button>
     </div>
   </div>
 </div>
+
 <script>
-// ── CONFIG ────────────────────────────────────────────────────────────────
-const SHEET_CSV_URL   = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1192838156&single=true&output=csv";
-const COMPANIES_URL   = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=0&single=true&output=csv";
-const REACTORS_URL    = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1429460762&single=true&output=csv";
-const PROJECTS_URL    = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9z7juNu6-baVwstfEzKBgzA93nduB4YKOvq_VwYT-BS1rW7oadeb_b4t7jgVtqvf0zM8pepJBT3DC/pub?gid=1132713683&single=true&output=csv";
-// ──────────────────────────────────────────────────────────────────────────
-let allDeals = [];
+// ── DATA URLS ─────────────────────────────────────────────────────────────
+const URLS = {
+  programs:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vRi9-rq5z3jVJgmWZ97i6TX6K0Z_PBEuHgz-m5gchPxsPlJcWVC5W81WMktPCPeYoD0ZWHclZwja-Ct/pub?gid=422911434&single=true&output=csv',
+  projects:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vRi9-rq5z3jVJgmWZ97i6TX6K0Z_PBEuHgz-m5gchPxsPlJcWVC5W81WMktPCPeYoD0ZWHclZwja-Ct/pub?gid=208941472&single=true&output=csv',
+  reactors:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vRi9-rq5z3jVJgmWZ97i6TX6K0Z_PBEuHgz-m5gchPxsPlJcWVC5W81WMktPCPeYoD0ZWHclZwja-Ct/pub?gid=1115053940&single=true&output=csv',
+  announcements: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRi9-rq5z3jVJgmWZ97i6TX6K0Z_PBEuHgz-m5gchPxsPlJcWVC5W81WMktPCPeYoD0ZWHclZwja-Ct/pub?gid=1322645176&single=true&output=csv',
+};
+
+// US states set for filtering
+const US_STATES = new Set([
+  'Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware',
+  'Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky',
+  'Louisiana','Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi',
+  'Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico',
+  'New York','North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania',
+  'Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont',
+  'Virginia','Washington','West Virginia','Wisconsin','Wyoming','Various','Multiple','TBD',''
+]);
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+let programs = [], projects = [], reactors = [], announcements = [];
+let programMap = {}, projectMap = {}, reactorMap = {};
 let filtered = [];
-let companiesMap = {};   // keyed by "Company Name"
-let reactorsMap  = {};   // keyed by "Reactor Name"
-let projectsMap  = {};   // keyed by "Project Name"
-// ── CSV parser ──────────────────────────────────────────────────────────────
+let sortCol = 'date', sortDir = -1;
+let explorerMode = 'program';
+
+// ── CSV PARSER ────────────────────────────────────────────────────────────
 function parseCSV(text) {
-  const lines = text.trim().split("\n");
-  const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = splitCSVLine(lines[0]);
   return lines.slice(1).map(line => {
-    // Handle quoted fields with commas inside
-    const fields = [];
-    let cur = "", inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') { inQ = !inQ; }
-      else if (ch === ',' && !inQ) { fields.push(cur.trim()); cur = ""; }
-      else { cur += ch; }
-    }
-    fields.push(cur.trim());
+    const fields = splitCSVLine(line);
     const obj = {};
-    headers.forEach((h, i) => obj[h] = (fields[i] || "").replace(/^"|"$/g, ""));
+    headers.forEach((h, i) => obj[h] = (fields[i] || '').trim());
     return obj;
-  }).filter(r => r["ann_id"] && r["ann_id"] !== "ann_id");
+  }).filter(r => Object.values(r).some(v => v));
 }
-// ── Date helpers — handles M/D/YYYY from Google Sheets ────────────────────
+function splitCSVLine(line) {
+  const fields = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQ = !inQ; }
+    else if (ch === ',' && !inQ) { fields.push(cur); cur = ''; }
+    else { cur += ch; }
+  }
+  fields.push(cur);
+  return fields.map(f => f.replace(/^"|"$/g, ''));
+}
+
+// ── DATE HELPERS ──────────────────────────────────────────────────────────
 function parseDate(d) {
   if (!d) return 0;
   const mdy = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (mdy) return new Date(mdy[3] + "-" + mdy[1].padStart(2,"0") + "-" + mdy[2].padStart(2,"0") + "T00:00:00").getTime();
-  return new Date(d + "T00:00:00").getTime() || 0;
+  if (mdy) return new Date(`${mdy[3]}-${mdy[1].padStart(2,'0')}-${mdy[2].padStart(2,'0')}T00:00:00`).getTime();
+  if (/^\d{4}$/.test(d)) return new Date(`${d}-01-01T00:00:00`).getTime();
+  if (/^\d{4}-\d{2}$/.test(d)) return new Date(`${d}-01T00:00:00`).getTime();
+  return new Date(d + 'T00:00:00').getTime() || 0;
 }
 function fmtDate(d) {
-  if (!d || d === "baseline") return "—";
-  try {
-    const ts = parseDate(d);
-    if (!ts) return d;
-    return new Date(ts).toLocaleDateString("en-US", { year:"numeric", month:"short", day:"numeric" });
-  } catch(e) { return d; }
+  if (!d) return '—';
+  if (/^\d{4}$/.test(d)) return d;
+  if (/^\d{4}-\d{2}$/.test(d)) {
+    const [y, m] = d.split('-');
+    return new Date(`${d}-01T00:00:00`).toLocaleDateString('en-US', {year:'numeric',month:'short'});
+  }
+  const ts = parseDate(d);
+  if (!ts) return d;
+  return new Date(ts).toLocaleDateString('en-US', {year:'numeric', month:'short', day:'numeric'});
 }
-// ── Badge ───────────────────────────────────────────────────────────────────
-function badge(sig) {
-  const map = {
-    "Deployment":         "sig-deployment",
-    "Market development": "sig-market",
-    "Signaling":          "sig-signaling",
-  };
-  const cls = map[sig] || "sig-signaling";
-  return `<span class="badge ${cls}"><span class="badge-dot"></span>${sig || "—"}</span>`;
+function fmtDateShort(d) {
+  if (!d) return '—';
+  const ts = parseDate(d);
+  if (!ts) return d;
+  return new Date(ts).toLocaleDateString('en-US', {year:'numeric', month:'short'});
 }
-// ── Populate filters ────────────────────────────────────────────────────────
-function populate(id, key) {
-  const sel = document.getElementById(id);
-  const vals = ["All", ...new Set(allDeals.map(d => d[key]).filter(Boolean).sort())];
-  sel.innerHTML = vals.map(v => `<option>${v}</option>`).join("");
-}
-function buildFilters() {
-  populate("f-company", "Company");
-  populate("f-reactor", "Reactor");
-  populate("f-project", "Project");
-  populate("f-partner", "Partners");
-  populate("f-sig",     "Significance");
-  ["f-company","f-reactor","f-project","f-partner","f-sig"].forEach(id => {
-    document.getElementById(id).addEventListener("change", render);
+
+// ── ENRICH ANNOUNCEMENTS ──────────────────────────────────────────────────
+function enrichAnnouncements() {
+  announcements.forEach(a => {
+    const proj = a['Project ID'] ? projectMap[a['Project ID']] : null;
+    const prog = a['Program ID'] ? programMap[a['Program ID']] : null;
+    const reac = a['Reactor ID'] ? reactorMap[a['Reactor ID']] : null;
+
+    a._project = proj || null;
+    a._program = prog || null;
+    a._reactor = reac || null;
+
+    // Resolve state via join
+    if (proj) {
+      a._state = proj['State'] || '';
+      a._lead  = proj['Primary Lead'] || prog?.['Lead Entity'] || '';
+      a._entityType = proj['Lead Entity Type'] || '';
+    } else if (prog) {
+      a._state = 'Multiple';
+      a._lead  = prog['Lead Entity'] || '';
+      a._entityType = '';
+    } else if (reac) {
+      a._state = reac['State'] || proj?.['State'] || '';
+      a._lead  = proj?.['Primary Lead'] || '';
+      a._entityType = proj?.['Lead Entity Type'] || '';
+    } else {
+      a._state = '';
+      a._lead  = '';
+      a._entityType = '';
+    }
+
+    // Linked name for display
+    a._linkedName = proj?.['Project Name'] || prog?.['Program Name'] || reac?.['Unit Name / Number'] || '';
+
+    // Capital in USD millions
+    const capLow = parseFloat(a['USD Val low (calc.)']) || parseFloat(a['Capital Value (low)']) || 0;
+    a._capUSD = capLow;
+
+    // Is US?
+    a._isUS = US_STATES.has(a._state) || a._state === 'Multiple' || a._state === '';
   });
 }
-// ── Stats ───────────────────────────────────────────────────────────────────
-function updateStats() {
-  document.getElementById("stat-deploy").textContent = allDeals.filter(d => d.Significance === "Deployment").length;
-  document.getElementById("stat-market").textContent = allDeals.filter(d => d.Significance === "Market development").length;
-  document.getElementById("stat-signal").textContent = allDeals.filter(d => d.Significance === "Signaling").length;
-  document.getElementById("stat-total").textContent  = allDeals.length;
+
+// ── BADGES ────────────────────────────────────────────────────────────────
+const SIG_CLASS = {
+  'Deployment': 'b-deployment', 'Financing': 'b-financing',
+  'Offtake': 'b-offtake', 'Market development': 'b-market',
+  'Signaling': 'b-signaling', 'Policy / Regulatory': 'b-policy',
+};
+const SIG_COLOR = {
+  'Deployment':'#1e6b3c','Financing':'#7b3f00','Offtake':'#1a5fa8',
+  'Market development':'#6b3080','Signaling':'#2a5a6b','Policy / Regulatory':'#555',
+};
+function sigBadge(s) {
+  const cls = SIG_CLASS[s] || 'b-policy';
+  return `<span class="badge ${cls}"><span class="badge-dot"></span>${s||'—'}</span>`;
 }
-// ── Render table ────────────────────────────────────────────────────────────
-function render() {
-  const fc = document.getElementById("f-company").value;
-  const fr = document.getElementById("f-reactor").value;
-  const fp = document.getElementById("f-project").value;
-  const fpa = document.getElementById("f-partner").value;
-  const fs = document.getElementById("f-sig").value;
-  filtered = allDeals
-    .filter(d =>
-      (fc  === "All" || d.Company      === fc)  &&
-      (fr  === "All" || d.Reactor      === fr)  &&
-      (fp  === "All" || d.Project      === fp)  &&
-      (fpa === "All" || d.Partners     === fpa) &&
-      (fs  === "All" || d.Significance === fs)
-    )
-    .sort((a, b) => parseDate(b.Date) - parseDate(a.Date));
-  document.getElementById("table-count").innerHTML =
-    `Showing <strong style="color:#0a1828">${filtered.length}</strong> of ${allDeals.length} entries`;
-  const body = document.getElementById("table-body");
-  if (filtered.length === 0) {
+function impactBadge(i) {
+  const cls = i === 'High' ? 'b-high' : i === 'Medium' ? 'b-medium' : 'b-low';
+  return `<span class="badge ${cls}">${i||'—'}</span>`;
+}
+function reviewBadge() {
+  return `<span class="badge b-review">Review</span>`;
+}
+
+// ── TAB SWITCHING ─────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.nav-tab').forEach((t,i) => t.classList.toggle('active', ['feed','explorer'][i] === tab));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById(`tab-${tab}`).classList.add('active');
+}
+
+// ── POPULATE FILTERS ──────────────────────────────────────────────────────
+function populateSel(id, vals) {
+  const sel = document.getElementById(id);
+  const current = sel.value;
+  sel.innerHTML = `<option value="">All</option>` + [...new Set(vals)].filter(Boolean).sort().map(v => `<option value="${v}"${v===current?' selected':''}>${v}</option>`).join('');
+}
+function buildFilters() {
+  populateSel('f-sig',    announcements.map(a => a['Significance']));
+  populateSel('f-type',   announcements.map(a => a['Deal Type']));
+  populateSel('f-entity', announcements.map(a => a._entityType));
+  populateSel('f-impact', ['High','Medium','Low']);
+  populateSel('f-lead',   announcements.map(a => a._lead));
+  // States — only US states
+  const states = [...new Set(announcements.filter(a => a._isUS && a._state && a._state !== 'Multiple' && a._state !== 'TBD' && a._state !== '').map(a => a._state))].sort();
+  const stSel = document.getElementById('f-state');
+  stSel.innerHTML = `<option value="">All</option><option value="Multiple">Multiple (program-level)</option>` + states.map(s => `<option value="${s}">${s}</option>`).join('');
+
+  ['f-sig','f-type','f-entity','f-state','f-impact','f-lead','f-date-from','f-date-to'].forEach(id => {
+    document.getElementById(id).addEventListener('change', renderFeed);
+    document.getElementById(id).addEventListener('input', renderFeed);
+  });
+}
+
+// ── KPI UPDATE ────────────────────────────────────────────────────────────
+function updateKPIs(data) {
+  const totalCap = data.reduce((s, a) => s + (a._capUSD || 0), 0);
+  document.getElementById('kpi-capital').textContent = totalCap > 0 ? fmtNumber(totalCap) : '—';
+
+  // Capacity from linked projects (dedupe by project ID)
+  const projIds = new Set(data.map(a => a['Project ID']).filter(Boolean));
+  let totalGW = 0;
+  projIds.forEach(pid => {
+    const proj = projectMap[pid];
+    if (!proj) return;
+    const cap = parseFloat(proj['Total Capacity']) || 0;
+    const unit = proj['Capacity Unit'] || 'GW';
+    if (unit === 'MW') totalGW += cap / 1000;
+    else if (unit === 'TW') totalGW += cap * 1000;
+    else totalGW += cap;
+  });
+  document.getElementById('kpi-capacity').textContent = totalGW > 0 ? totalGW.toFixed(1) : '—';
+  document.getElementById('kpi-total').textContent = data.length;
+  document.getElementById('kpi-total-sub').textContent = data.length === announcements.length ? 'total tracked' : 'in current filter';
+  document.getElementById('kpi-projects').textContent = projects.length;
+
+  const sigCounts = { Deployment:0, Financing:0, Offtake:0, 'Market development':0, Signaling:0, 'Policy / Regulatory':0 };
+  data.forEach(a => { if (sigCounts[a.Significance] !== undefined) sigCounts[a.Significance]++; });
+  document.getElementById('ks-deploy').textContent  = sigCounts['Deployment'];
+  document.getElementById('ks-finance').textContent = sigCounts['Financing'];
+  document.getElementById('ks-offtake').textContent = sigCounts['Offtake'];
+  document.getElementById('ks-market').textContent  = sigCounts['Market development'];
+  document.getElementById('ks-signal').textContent  = sigCounts['Signaling'];
+  document.getElementById('ks-policy').textContent  = sigCounts['Policy / Regulatory'];
+}
+
+function fmtNumber(n) {
+  if (n >= 1000000) return (n/1000000).toFixed(1) + 'T';
+  if (n >= 1000)    return (n/1000).toFixed(1) + 'B';
+  return Math.round(n).toLocaleString();
+}
+
+// ── SORT ──────────────────────────────────────────────────────────────────
+function sortBy(col) {
+  if (sortCol === col) sortDir *= -1;
+  else { sortCol = col; sortDir = -1; }
+  document.querySelectorAll('.col-head').forEach(h => {
+    h.classList.remove('sorted');
+    h.querySelector('.sort-arrow').textContent = '↕';
+  });
+  const el = document.querySelector(`.col-head[data-col="${col}"]`);
+  if (el) { el.classList.add('sorted'); el.querySelector('.sort-arrow').textContent = sortDir === -1 ? '↓' : '↑'; }
+  renderFeed();
+}
+
+// ── RENDER FEED ───────────────────────────────────────────────────────────
+function renderFeed() {
+  const fSig    = document.getElementById('f-sig').value;
+  const fType   = document.getElementById('f-type').value;
+  const fEntity = document.getElementById('f-entity').value;
+  const fState  = document.getElementById('f-state').value;
+  const fImpact = document.getElementById('f-impact').value;
+  const fLead   = document.getElementById('f-lead').value;
+  const fFrom   = document.getElementById('f-date-from').value;
+  const fTo     = document.getElementById('f-date-to').value;
+  const fReview = document.getElementById('f-review').checked;
+  const fUSOnly = document.getElementById('f-us-only').checked;
+
+  filtered = announcements.filter(a => {
+    if (fSig    && a['Significance'] !== fSig)   return false;
+    if (fType   && a['Deal Type']    !== fType)  return false;
+    if (fEntity && a._entityType     !== fEntity) return false;
+    if (fState  && a._state          !== fState)  return false;
+    if (fImpact && a['Impact']       !== fImpact) return false;
+    if (fLead   && a._lead           !== fLead)   return false;
+    if (fReview && a['Needs Review'] !== 'Yes')   return false;
+    if (fUSOnly && !a._isUS)                      return false;
+    const ts = parseDate(a['Announcement Date']);
+    if (fFrom && ts && ts < parseDate(fFrom)) return false;
+    if (fTo   && ts && ts > parseDate(fTo))   return false;
+    return true;
+  });
+
+  // Sort
+  filtered.sort((a, b) => {
+    let va, vb;
+    switch(sortCol) {
+      case 'date':    va = parseDate(a['Announcement Date']); vb = parseDate(b['Announcement Date']); break;
+      case 'type':    va = a['Deal Type']||'';    vb = b['Deal Type']||'';    break;
+      case 'sig':     va = a['Significance']||''; vb = b['Significance']||''; break;
+      case 'summary': va = a['Deal Summary']||''; vb = b['Deal Summary']||''; break;
+      case 'entity':  va = a._entityType||'';     vb = b._entityType||'';     break;
+      case 'capital': va = a._capUSD||0;           vb = b._capUSD||0;          break;
+      case 'impact':  const imp = {High:3,Medium:2,Low:1}; va = imp[a.Impact]||0; vb = imp[b.Impact]||0; break;
+      default:        va = 0; vb = 0;
+    }
+    if (va < vb) return sortDir;
+    if (va > vb) return -sortDir;
+    return 0;
+  });
+
+  updateKPIs(filtered);
+  document.getElementById('table-count').innerHTML = `Showing <strong style="color:#0a1828">${filtered.length}</strong> of ${announcements.length} announcements`;
+
+  const body = document.getElementById('table-body');
+  if (!filtered.length) {
     body.innerHTML = `<div class="empty">No results match the current filters.</div>`;
     return;
   }
-  const grid = "1fr 0.85fr 1.2fr 1.5fr 0.75fr 0.9fr 1.1fr";
-  body.innerHTML = filtered.map((d, i) => `
-    <div class="row" style="--grid:${grid}" data-idx="${i}">
-      <button class="lbtn" onclick="openModal('company', ${i})">${d.Company || "—"}</button>
-      <button class="lbtn" onclick="openModal('reactor', ${i})">${d.Reactor || "—"}</button>
-      <button class="lbtn" onclick="openModal('project', ${i})">${d.Project || "—"}</button>
-      <button class="lbtn" onclick="openModal('deal', ${i})">${d["Deal / Announcement"] || "—"}</button>
-      <span class="cell">${d.Partners || "—"}</span>
-      <span class="cell-date">${fmtDate(d.Date)}</span>
-      ${badge(d.Significance)}
-    </div>
-  `).join("");
+
+  const grid = '90px 110px 1fr 1.8fr 110px 110px 80px 36px';
+  body.innerHTML = filtered.map((a, i) => {
+    const capStr = a['Capital Value (low)']
+      ? `${parseFloat(a['Capital Value (low)']).toLocaleString()} ${a['Capital Unit']||''}`.trim()
+      : '—';
+    const linkedName = a._linkedName ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">${a._linkedName}</div>` : '';
+    const intlFlag = !a._isUS ? `<span class="intl-flag">INTL</span>` : '';
+    const reviewFlag = a['Needs Review'] === 'Yes' ? reviewBadge() : '';
+    return `<div class="trow" style="--tgrid:${grid}">
+      <span class="cell-date">${fmtDateShort(a['Announcement Date'])}</span>
+      <span class="cell" style="font-size:12px">${a['Deal Type']||'—'}</span>
+      <span class="cell">${sigBadge(a['Significance'])}</span>
+      <div class="cell-summary">
+        <button class="lbtn" onclick="openDealModal(${i})">${(a['Deal Summary']||'').slice(0,120)}${(a['Deal Summary']||'').length>120?'…':''}</button>
+        ${linkedName}
+      </div>
+      <div class="cell">
+        <div style="font-size:12px;font-weight:600;color:var(--slate)">${a._lead||'—'}${intlFlag}</div>
+        <div style="font-size:11px;color:var(--muted)">${a._entityType||''}</div>
+      </div>
+      <span class="cell" style="font-size:12px">${capStr}</span>
+      <span class="cell">${impactBadge(a['Impact'])}</span>
+      <span class="cell">${a['Source URL'] ? `<a href="${a['Source URL']}" target="_blank" rel="noreferrer" class="cell-link" title="Source">↗</a>` : ''}</span>
+    </div>`;
+  }).join('');
 }
-// ── Modal ───────────────────────────────────────────────────────────────────
+
+function resetFilters() {
+  ['f-sig','f-type','f-entity','f-state','f-impact','f-lead','f-date-from','f-date-to'].forEach(id => {
+    const el = document.getElementById(id);
+    el.value = id === 'f-date-from' || id === 'f-date-to' ? '' : '';
+  });
+  document.getElementById('f-review').checked = false;
+  document.getElementById('f-us-only').checked = true;
+  renderFeed();
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────
 function drow(label, val) {
-  if (!val) return "";
+  if (!val || val === '—') return '';
   return `<div class="drow"><span class="drow-label">${label}</span><span class="drow-val">${val}</span></div>`;
 }
-function openModal(type, idx) {
-  const d = filtered[idx];
-  const tags = { company:"Company Profile", reactor:"Reactor Overview", project:"Project Details", deal:"Announcement" };
-  document.getElementById("modal-tag").textContent = tags[type];
-  let title = "", body = "";
-  if (type === "company") {
-    title = d.Company;
-    const c = companiesMap[d.Company] || {};
-    body = drow("Type",          c["Type"]           || d["Type"] || "—") +
-           drow("Founded",       c["Year Founded"]   || "—") +
-           drow("Headquarters",  c["Headquarters"]   || d["Location"] || "—") +
-           drow("Capital Raised",c["Capital Raised"] || "—") +
-           drow("Website",       c["Website"]        || "—");
-    const desc = c["Description"] || "";
-    if (desc && !desc.toLowerCase().includes("auto-created")) {
-      body += `<p class="modal-desc">${desc}</p>`;
-    }
-  } else if (type === "reactor") {
-    title = d.Reactor;
-    const r = reactorsMap[d.Reactor] || {};
-    body = drow("Category",         r["Category"]          || "—") +
-           drow("Capacity",         r["Capacity"]          || "—") +
-           drow("Coolant",          r["Coolant"]           || "—") +
-           drow("Fuel",             r["Fuel"]              || "—") +
-           drow("Reactor Type",     r["Reactor Type"]      || "—") +
-           drow("Development Stage",r["Development Stage"] || "—") +
-           drow("Regulatory Status",r["Regulatory Status"] || d["NRC Status"] || "—");
-  } else if (type === "project") {
-    title = d.Project;
-    const pr = projectsMap[d.Project] || {};
-    body = drow("Site",         pr["Site"]          || d["Location"] || "—") +
-           drow("State",        pr["State"]         || "—") +
-           drow("Country",      d["Country"]        || "—") +
-           drow("Project Type", pr["Project Type"]  || "—") +
-           drow("Reactor",      pr["Reactor"]       || d["Reactor"] || "—") +
-           drow("Timeline",     d["Timeline"]       || "—");
-    const notes = pr["Notes"] || d["Summary"] || "";
-    if (notes && !notes.toLowerCase().includes("auto-created")) {
-      body += `<p class="modal-desc">${notes}</p>`;
-    }
-  } else if (type === "deal") {
-    title = d["Deal / Announcement"];
-    body = drow("Company",    d.Company) +
-           drow("Reactor",    d.Reactor) +
-           drow("Project",    d.Project) +
-           drow("Partners",   d.Partners) +
-           drow("Location",   d.Location) +
-           drow("Country",    d.Country) +
-           drow("Date",       fmtDate(d.Date)) +
-           drow("Capital",    d["Capital Sources"]) +
-           drow("NRC Status", d["NRC Status"]) +
-           drow("Timeline",   d.Timeline);
-    if (d.Summary) body += `<p class="modal-desc">${d.Summary}</p>`;
-    if (d.Source && d.Source.startsWith("http")) {
-      body += `<a href="${d.Source}" target="_blank" rel="noreferrer" class="modal-link">View source →</a>`;
-    }
+function openDealModal(idx) {
+  const a = filtered[idx];
+  document.getElementById('modal-tag').textContent = a['Deal Type'] || 'Announcement';
+  document.getElementById('modal-title').textContent = a['Deal Summary'] || 'Deal Detail';
+  let body = '';
+  body += drow('Deal ID',     a['Deal ID']);
+  body += drow('Date',        fmtDate(a['Announcement Date']));
+  body += drow('Significance',a['Significance']);
+  body += drow('Impact',      a['Impact']);
+  body += drow('Partners',    a['Partners']);
+  if (a._project) {
+    body += drow('Project',   a._project['Project Name']);
+    body += drow('Site',      a._project['Site Name']);
+    body += drow('State',     a._project['State']);
+    body += drow('Technology',a._project['Reactor Technology']);
   }
-  document.getElementById("modal-title").textContent = title;
-  document.getElementById("modal-body").innerHTML = body;
-  const overlay = document.getElementById("modal-overlay");
-  overlay.classList.add("open");
+  if (a._program && !a._project) {
+    body += drow('Program',   a._program['Program Name']);
+    body += drow('Lead Entity',a._program['Lead Entity']);
+  }
+  if (a['Capital Value (low)']) {
+    const capType = a['Value Type'] ? `(${a['Value Type']})` : '';
+    body += drow('Capital', `${parseFloat(a['Capital Value (low)']).toLocaleString()} ${a['Capital Unit']||''} ${capType}`.trim());
+  }
+  if (a['USD Val low (calc.)']) {
+    body += drow('USD equiv.', `$${parseFloat(a['USD Val low (calc.)']).toLocaleString()}M`);
+  }
+  body += drow('Capital Source', a['Capital Source']);
+  body += drow('Confidence',  a['Confidence']);
+  body += drow('Needs Review',a['Needs Review']);
+  document.getElementById('modal-body').innerHTML = body;
+  if (a['Source URL']) {
+    document.getElementById('modal-body').innerHTML += `<a href="${a['Source URL']}" target="_blank" rel="noreferrer" class="modal-link">View source article →</a>`;
+  }
+  document.getElementById('modal-overlay').classList.add('open');
 }
-function closeModal() {
-  document.getElementById("modal-overlay").classList.remove("open");
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+document.getElementById('modal-overlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ── DOWNLOAD EXCEL ────────────────────────────────────────────────────────
+function downloadExcel() {
+  if (!filtered.length) return;
+  const cols = ['Deal ID','Announcement Date','Deal Type','Significance','Impact','Deal Summary','Partners','Capital Value (low)','Capital Unit','Value Type','Capital Source','USD Val low (calc.)','Source URL','Confidence','Needs Review'];
+  const extra = ['_lead','_entityType','_state','_linkedName'];
+  const headers = [...cols, 'Primary Lead','Lead Entity Type','State / Location','Linked Entity'];
+  const rows = filtered.map(a => [...cols.map(c => a[c]||''), a._lead||'', a._entityType||'', a._state||'', a._linkedName||'']);
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Announcements');
+  XLSX.writeFile(wb, `nuclear-deals-${new Date().toISOString().slice(0,10)}.xlsx`);
 }
-document.getElementById("modal-overlay").addEventListener("click", function(e) {
-  if (e.target === this) closeModal();
-});
-document.getElementById("modal-close-btn").addEventListener("click", closeModal);
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
-// ── Load data ───────────────────────────────────────────────────────────────
+
+// ── ENTITY EXPLORER ───────────────────────────────────────────────────────
+function setMode(mode) {
+  explorerMode = mode;
+  document.querySelectorAll('.mode-tab').forEach((t,i) => t.classList.toggle('active', ['program','project','reactor'][i] === mode));
+  const labels = { program: 'Select a Program', project: 'Select a Project', reactor: 'Select a Reactor' };
+  document.getElementById('explorer-select-label').textContent = labels[mode];
+  const sel = document.getElementById('explorer-select');
+  sel.innerHTML = '<option value="">— choose one —</option>';
+
+  let items = [];
+  if (mode === 'program') items = programs.map(p => ({ id: p['Program ID'], name: p['Program Name'] }));
+  if (mode === 'project') items = projects.map(p => ({ id: p['Project ID'], name: p['Project Name'] }));
+  if (mode === 'reactor') items = reactors.map(r => ({ id: r['Reactor ID'], name: `${r['Unit Name / Number']} (${r['Project ID (opt.)']||'standalone'})` }));
+
+  items.sort((a,b) => a.name.localeCompare(b.name));
+  sel.innerHTML += items.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+
+  document.getElementById('explorer-content').innerHTML = `
+    <div class="no-selection">
+      <div class="no-selection-icon">🔍</div>
+      <div class="no-selection-text">Select a ${mode} above to explore its announcement timeline.</div>
+    </div>`;
+}
+
+function loadEntity() {
+  const id = document.getElementById('explorer-select').value;
+  if (!id) {
+    document.getElementById('explorer-content').innerHTML = `<div class="no-selection"><div class="no-selection-icon">🔍</div><div class="no-selection-text">Select an entity above.</div></div>`;
+    return;
+  }
+
+  if (explorerMode === 'program') renderProgramView(id);
+  else if (explorerMode === 'project') renderProjectView(id);
+  else renderReactorView(id);
+}
+
+function renderProgramView(progId) {
+  const prog = programMap[progId];
+  if (!prog) return;
+  const linkedProjects = projects.filter(p => p['Program ID (opt.)'] === progId);
+  const linkedDeals = announcements.filter(a => a['Program ID'] === progId || linkedProjects.some(p => p['Project ID'] === a['Project ID']));
+  const sortedDeals = [...linkedDeals].sort((a,b) => parseDate(b['Announcement Date']) - parseDate(a['Announcement Date']));
+
+  let html = `
+    <div class="entity-detail">
+      <div class="entity-header">
+        <div class="entity-header-left">
+          <h2>${prog['Program Name']}</h2>
+          <div class="entity-meta">
+            <span class="badge b-entity">${prog['Program Type']||''}</span>
+            <span class="badge b-entity">Lead: ${prog['Lead Entity']||''}</span>
+            <span class="badge ${prog['Status']==='Active'?'b-deployment':'b-low'}">${prog['Status']||''}</span>
+          </div>
+          ${prog['Description'] ? `<p style="font-size:13px;color:var(--muted);margin-top:10px;max-width:600px;line-height:1.6">${prog['Description']}</p>` : ''}
+        </div>
+        <div class="entity-stat-row">
+          <div class="entity-stat"><div class="entity-stat-n">${linkedProjects.length}</div><div class="entity-stat-l">Projects</div></div>
+          <div class="entity-stat"><div class="entity-stat-n">${sortedDeals.length}</div><div class="entity-stat-l">Deals</div></div>
+        </div>
+      </div>`;
+
+  if (linkedProjects.length) {
+    html += `<div class="timeline-header">Linked Projects</div>
+      <div class="child-projects">
+        ${linkedProjects.map(p => `
+          <div class="proj-card" onclick="document.getElementById('explorer-select').value='${p['Project ID']}';setMode('project');loadEntity()">
+            <div class="proj-card-name">${p['Project Name']}</div>
+            <div class="proj-card-meta">
+              <span class="badge b-entity" style="font-size:10px">${p['Project Type']||''}</span>
+              <span class="badge b-entity" style="font-size:10px">${p['State']||''}</span>
+            </div>
+            <div class="proj-card-stat">${p['Primary Lead']||''} · ${p['Reactor Technology']||''}</div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  html += renderTimeline(sortedDeals) + '</div>';
+  document.getElementById('explorer-content').innerHTML = html;
+}
+
+function renderProjectView(projId) {
+  const proj = projectMap[projId];
+  if (!proj) return;
+  const linkedDeals = announcements.filter(a => a['Project ID'] === projId);
+  const linkedReactors = reactors.filter(r => r['Project ID (opt.)'] === projId);
+  const sortedDeals = [...linkedDeals].sort((a,b) => parseDate(b['Announcement Date']) - parseDate(a['Announcement Date']));
+  const prog = proj['Program ID (opt.)'] ? programMap[proj['Program ID (opt.)']] : null;
+
+  const capNum = parseFloat(proj['Total Capacity'])||0;
+  const capUnit = proj['Capacity Unit']||'GW';
+  const capGW = capUnit==='MW' ? capNum/1000 : capUnit==='TW' ? capNum*1000 : capNum;
+
+  let html = `
+    <div class="entity-detail">
+      <div class="entity-header">
+        <div class="entity-header-left">
+          <h2>${proj['Project Name']}</h2>
+          <div class="entity-meta">
+            <span class="badge b-entity">${proj['Lead Entity Type']||''}</span>
+            <span class="badge b-entity">${proj['Project Type']||''}</span>
+            <span class="badge b-entity">${proj['State']||''}</span>
+            <span class="badge ${proj['Status']==='Active'?'b-deployment':'b-low'}">${proj['Status']||''}</span>
+          </div>
+          <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:var(--muted)">
+            ${proj['Primary Lead'] ? `<span><strong style="color:var(--slate)">Lead:</strong> ${proj['Primary Lead']}</span>` : ''}
+            ${proj['Co-leads']     ? `<span><strong style="color:var(--slate)">Co-leads:</strong> ${proj['Co-leads']}</span>` : ''}
+            ${proj['Site Name']    ? `<span><strong style="color:var(--slate)">Site:</strong> ${proj['Site Name']}</span>` : ''}
+            ${proj['Reactor Technology'] ? `<span><strong style="color:var(--slate)">Technology:</strong> ${proj['Reactor Technology']}</span>` : ''}
+            ${proj['Target Operation'] ? `<span><strong style="color:var(--slate)">Target:</strong> ${proj['Target Operation']}</span>` : ''}
+            ${prog ? `<span><strong style="color:var(--slate)">Program:</strong> ${prog['Program Name']}</span>` : ''}
+          </div>
+          ${proj['NRC Status'] ? `<div style="font-size:12px;color:var(--muted);margin-top:6px">NRC: ${proj['NRC Status']}</div>` : ''}
+        </div>
+        <div class="entity-stat-row">
+          ${capGW > 0 ? `<div class="entity-stat"><div class="entity-stat-n">${capGW.toFixed(1)}</div><div class="entity-stat-l">GW capacity</div></div>` : ''}
+          <div class="entity-stat"><div class="entity-stat-n">${sortedDeals.length}</div><div class="entity-stat-l">Deals</div></div>
+          ${linkedReactors.length ? `<div class="entity-stat"><div class="entity-stat-n">${linkedReactors.length}</div><div class="entity-stat-l">Reactors</div></div>` : ''}
+        </div>
+      </div>`;
+
+  html += renderTimeline(sortedDeals) + '</div>';
+  document.getElementById('explorer-content').innerHTML = html;
+}
+
+function renderReactorView(reacId) {
+  const reac = reactorMap[reacId];
+  if (!reac) return;
+  const linkedDeals = announcements.filter(a => a['Reactor ID'] === reacId);
+  const proj = reac['Project ID (opt.)'] ? projectMap[reac['Project ID (opt.)']] : null;
+  const sortedDeals = [...linkedDeals].sort((a,b) => parseDate(b['Announcement Date']) - parseDate(a['Announcement Date']));
+
+  const capNum = parseFloat(reac['Capacity'])||0;
+  const capUnit = reac['Capacity Unit']||'MW';
+  const capGW = capUnit==='MW' ? capNum/1000 : capUnit==='TW' ? capNum*1000 : capNum;
+
+  let html = `
+    <div class="entity-detail">
+      <div class="entity-header">
+        <div class="entity-header-left">
+          <h2>${reac['Unit Name / Number']}</h2>
+          <div class="entity-meta">
+            <span class="badge b-entity">${reac['Technology']||''}</span>
+            ${reac['State'] ? `<span class="badge b-entity">${reac['State']}</span>` : ''}
+            <span class="badge ${reac['Status']==='Active'?'b-deployment':'b-low'}">${reac['Status']||''}</span>
+          </div>
+          ${proj ? `<div style="margin-top:8px;font-size:13px;color:var(--muted)">Part of project: <button class="lbtn" onclick="document.getElementById('explorer-select').value='${proj['Project ID']}';setMode('project');loadEntity()">${proj['Project Name']}</button></div>` : ''}
+          ${reac['Site Name'] ? `<div style="font-size:13px;color:var(--muted);margin-top:4px">Site: ${reac['Site Name']}</div>` : ''}
+          ${reac['Target Operation'] ? `<div style="font-size:13px;color:var(--muted);margin-top:4px">Target: ${reac['Target Operation']}</div>` : ''}
+        </div>
+        <div class="entity-stat-row">
+          ${capGW > 0 ? `<div class="entity-stat"><div class="entity-stat-n">${capGW.toFixed(2)}</div><div class="entity-stat-l">GW capacity</div></div>` : ''}
+          <div class="entity-stat"><div class="entity-stat-n">${sortedDeals.length}</div><div class="entity-stat-l">Deals</div></div>
+        </div>
+      </div>`;
+
+  html += renderTimeline(sortedDeals) + '</div>';
+  document.getElementById('explorer-content').innerHTML = html;
+}
+
+function renderTimeline(deals) {
+  if (!deals.length) return `<div class="timeline-header">Announcement Timeline</div><div class="empty">No announcements linked to this entity yet.</div>`;
+  return `
+    <div class="timeline-header">Announcement Timeline — ${deals.length} deal${deals.length!==1?'s':''}</div>
+    <div class="timeline-section">
+      ${deals.map((a, i) => {
+        const color = SIG_COLOR[a['Significance']] || '#888';
+        const isLast = i === deals.length - 1;
+        return `<div class="timeline-item">
+          <div class="timeline-dot-col">
+            <div class="timeline-dot" style="background:${color}"></div>
+            ${!isLast ? '<div class="timeline-line"></div>' : ''}
+          </div>
+          <div class="timeline-content">
+            <div class="timeline-date">${fmtDate(a['Announcement Date'])}</div>
+            <div class="timeline-summary">${a['Deal Summary']||'—'}</div>
+            <div class="timeline-meta">
+              ${sigBadge(a['Significance'])}
+              ${impactBadge(a['Impact'])}
+              <span class="badge b-entity" style="font-size:11px">${a['Deal Type']||''}</span>
+              ${a['Capital Value (low)'] ? `<span class="badge b-low" style="font-size:11px">${parseFloat(a['Capital Value (low)']).toLocaleString()} ${a['Capital Unit']||''}</span>` : ''}
+              ${a['Needs Review']==='Yes' ? reviewBadge() : ''}
+              ${a['Source URL'] ? `<a href="${a['Source URL']}" target="_blank" rel="noreferrer" class="cell-link" style="margin-left:4px">↗ source</a>` : ''}
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ── LOAD DATA ─────────────────────────────────────────────────────────────
 async function fetchCSV(url) {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
   return parseCSV(await res.text());
 }
+
 async function loadData() {
-  const body = document.getElementById("table-body");
   try {
-    // Fetch all 4 CSVs in parallel at startup
-    const [announcements, companies, reactors, projects] = await Promise.all([
-      fetchCSV(SHEET_CSV_URL),
-      fetchCSV(COMPANIES_URL),
-      fetchCSV(REACTORS_URL),
-      fetchCSV(PROJECTS_URL),
+    [programs, projects, reactors, announcements] = await Promise.all([
+      fetchCSV(URLS.programs), fetchCSV(URLS.projects),
+      fetchCSV(URLS.reactors), fetchCSV(URLS.announcements),
     ]);
-    // Build lookup maps keyed by entity name
-    companies.forEach(r => { if (r["Company Name"]) companiesMap[r["Company Name"]] = r; });
-    reactors.forEach(r  => { if (r["Reactor Name"])  reactorsMap[r["Reactor Name"]]  = r; });
-    projects.forEach(r  => { if (r["Project Name"])  projectsMap[r["Project Name"]]  = r; });
-    allDeals = announcements;
+
+    // Build lookup maps
+    programs.forEach(p      => { if (p['Program ID'])              programMap[p['Program ID']]              = p; });
+    projects.forEach(p      => { if (p['Project ID'])              projectMap[p['Project ID']]              = p; });
+    reactors.forEach(r      => { if (r['Reactor ID'])              reactorMap[r['Reactor ID']]              = r; });
+
+    enrichAnnouncements();
+
+    // Review badge
+    const reviewCount = announcements.filter(a => a['Needs Review'] === 'Yes').length;
+    const badge = document.getElementById('review-badge');
+    if (reviewCount > 0) { badge.textContent = `${reviewCount} needs review`; badge.classList.add('show'); }
+
     buildFilters();
-    updateStats();
-    render();
-  } catch (err) {
-    body.innerHTML = `<div class="error-msg">
-      ❌ Could not load data: ${err.message}<br><br>
-      Make sure all Google Sheet tabs are published to web as CSV.
-    </div>`;
-    document.getElementById("table-count").textContent = "Error loading data";
+    renderFeed();
+    setMode('program');
+
+  } catch(err) {
+    document.getElementById('table-body').innerHTML = `<div class="error-msg">❌ Could not load data: ${err.message}<br><br>Ensure the Google Sheet tabs are published to web as CSV.</div>`;
+    document.getElementById('table-count').textContent = 'Error loading data';
   }
 }
+
 loadData();
 </script>
 </body>
