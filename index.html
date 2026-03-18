@@ -192,7 +192,6 @@ nav {
 }
 .tip-box::before { content: ''; position: absolute; bottom: 100%; left: 16px; border: 6px solid transparent; border-bottom-color: #0a1828; }
 .tip-wrap:hover .tip-box { opacity: 1; transform: translateY(0); }
-/* Right-align variant for cards near right edge */
 .tip-right .tip-box { left: auto; right: 0; }
 .tip-right .tip-box::before { left: auto; right: 16px; }
 .tip-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--sky); margin-bottom: 6px; }
@@ -486,9 +485,7 @@ nav {
       </div>
     </div>
 
-    <!-- Full entity list grid -->
     <div id="entity-list" style="margin-bottom:20px"></div>
-
     <div id="explorer-content" style="display:none"></div>
 
     <div class="footer" style="margin-top:24px">
@@ -532,7 +529,6 @@ const URLS = {
   announcements: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRi9-rq5z3jVJgmWZ97i6TX6K0Z_PBEuHgz-m5gchPxsPlJcWVC5W81WMktPCPeYoD0ZWHclZwja-Ct/pub?gid=1322645176&single=true&output=csv',
 };
 
-// US states set for filtering
 const US_STATES = new Set([
   'Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware',
   'Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky',
@@ -547,9 +543,11 @@ const US_STATES = new Set([
 let programs = [], projects = [], reactors = [], announcements = [];
 let programMap = {}, projectMap = {}, reactorMap = {};
 let filtered = [];
-let sortCol = 'date', sortDir = -1;  // always default to newest first
+// FIX 1: sortDir = 1 means "larger value first" (newest dates first).
+// Comparator: if (va < vb) return sortDir → 1 pushes smaller (older) dates after larger (newer).
+let sortCol = 'date', sortDir = 1;
 let explorerMode = 'program';
-let explorerItems = []; // current full item list for search filtering
+let explorerItems = [];
 
 // ── CSV PARSER ────────────────────────────────────────────────────────────
 function parseCSV(text) {
@@ -569,7 +567,6 @@ function splitCSVLine(line) {
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
     if (ch === '"') {
-      // Handle escaped quotes ("")
       if (inQ && line[i+1] === '"') { cur += '"'; i++; }
       else { inQ = !inQ; }
     } else if (ch === ',' && !inQ) {
@@ -595,10 +592,7 @@ function parseDate(d) {
 function fmtDate(d) {
   if (!d) return '—';
   if (/^\d{4}$/.test(d)) return d;
-  if (/^\d{4}-\d{2}$/.test(d)) {
-    const [y, m] = d.split('-');
-    return new Date(`${d}-01T00:00:00`).toLocaleDateString('en-US', {year:'numeric',month:'short'});
-  }
+  if (/^\d{4}-\d{2}$/.test(d)) return new Date(`${d}-01T00:00:00`).toLocaleDateString('en-US', {year:'numeric',month:'short'});
   const ts = parseDate(d);
   if (!ts) return d;
   return new Date(ts).toLocaleDateString('en-US', {year:'numeric', month:'short', day:'numeric'});
@@ -610,10 +604,20 @@ function fmtDateShort(d) {
   return new Date(ts).toLocaleDateString('en-US', {year:'numeric', month:'short'});
 }
 
+// ── URL SANITIZER ─────────────────────────────────────────────────────────
+// FIX 2: Collapse double-slashes that sneak in after the domain
+// e.g. https://world-nuclear-news.org//article → https://world-nuclear-news.org/article
+function safeUrl(url) {
+  if (!url) return '';
+  url = url.trim();
+  // Collapse 2+ consecutive slashes that are NOT preceded by a colon (i.e. not "://")
+  url = url.replace(/([^:])\/\/+/g, '$1/');
+  try { return encodeURI(decodeURI(url)); } catch(e) { return url; }
+}
+
 // ── ENRICH ANNOUNCEMENTS ──────────────────────────────────────────────────
 function enrichAnnouncements() {
   announcements.forEach(a => {
-    // Strip any trailing carriage returns from all values
     Object.keys(a).forEach(k => { if (typeof a[k] === 'string') a[k] = a[k].replace(/\r/g, '').trim(); });
     const proj = a['Project ID'] ? projectMap[a['Project ID']] : null;
     const prog = a['Program ID'] ? programMap[a['Program ID']] : null;
@@ -623,7 +627,6 @@ function enrichAnnouncements() {
     a._program = prog || null;
     a._reactor = reac || null;
 
-    // Resolve state via join
     if (proj) {
       a._state = proj['State'] || '';
       a._lead  = proj['Primary Lead'] || prog?.['Lead Entity'] || '';
@@ -642,14 +645,9 @@ function enrichAnnouncements() {
       a._entityType = '';
     }
 
-    // Linked name for display
     a._linkedName = proj?.['Project Name'] || prog?.['Program Name'] || reac?.['Unit Name / Number'] || '';
-
-    // Capital in USD millions — strip commas before parsing (values like "332,000.")
     const rawCap = (a['USD Val low (calc.)'] || a['Capital Value (low)'] || '').replace(/,/g, '');
     a._capUSD = parseFloat(rawCap) || 0;
-
-    // Is US?
     a._isUS = US_STATES.has(a._state) || a._state === 'Multiple' || a._state === '';
   });
 }
@@ -672,9 +670,7 @@ function impactBadge(i) {
   const cls = i === 'High' ? 'b-high' : i === 'Medium' ? 'b-medium' : 'b-low';
   return `<span class="badge ${cls}">${i||'—'}</span>`;
 }
-function reviewBadge() {
-  return `<span class="badge b-review">Review</span>`;
-}
+function reviewBadge() { return `<span class="badge b-review">Review</span>`; }
 
 // ── TAB SWITCHING ─────────────────────────────────────────────────────────
 function switchTab(tab) {
@@ -684,36 +680,26 @@ function switchTab(tab) {
 }
 
 // ── MULTI-SELECT DROPDOWN ENGINE ─────────────────────────────────────────
-const msState = {}; // { msId: Set of selected values }
+const msState = {};
 
 function toggleMs(msId) {
   const wrap = document.getElementById(msId);
   const isOpen = wrap.classList.contains('open');
-  // Close all others
   document.querySelectorAll('.ms-wrap.open').forEach(w => w.classList.remove('open'));
   if (!isOpen) wrap.classList.add('open');
 }
-
-// Close dropdowns when clicking outside
 document.addEventListener('click', e => {
-  if (!e.target.closest('.ms-wrap')) {
-    document.querySelectorAll('.ms-wrap.open').forEach(w => w.classList.remove('open'));
-  }
+  if (!e.target.closest('.ms-wrap')) document.querySelectorAll('.ms-wrap.open').forEach(w => w.classList.remove('open'));
 });
 
 function buildMs(msId, values, hasSearch = false) {
   if (!msState[msId]) msState[msId] = new Set();
   const dropdown = document.querySelector(`#${msId} .ms-dropdown`);
   const sorted = [...new Set(values)].filter(Boolean).sort();
-
   let html = '';
   if (hasSearch) html += `<div class="ms-search"><input type="text" placeholder="Search…" oninput="filterMsOptions('${msId}', this.value)"></div>`;
   html += `<div class="ms-option select-all" onclick="toggleMsAll('${msId}')"><input type="checkbox" id="${msId}-all" ${msState[msId].size === 0 ? 'checked' : ''}> All</div>`;
-  html += sorted.map(v => `
-    <div class="ms-option" onclick="toggleMsVal('${msId}','${v.replace(/'/g,"\\'")}',event)">
-      <input type="checkbox" ${msState[msId].has(v) ? 'checked' : ''}> ${v}
-    </div>`).join('');
-
+  html += sorted.map(v => `<div class="ms-option" onclick="toggleMsVal('${msId}','${v.replace(/'/g,"\\'")}',event)"><input type="checkbox" ${msState[msId].has(v) ? 'checked' : ''}> ${v}</div>`).join('');
   dropdown.innerHTML = html;
   updateMsTrigger(msId, sorted.length);
 }
@@ -722,12 +708,8 @@ function toggleMsVal(msId, val, e) {
   e.stopPropagation();
   const set = msState[msId];
   if (set.has(val)) set.delete(val); else set.add(val);
-  // Re-render checkboxes
-  const opts = document.querySelectorAll(`#${msId} .ms-option:not(.select-all)`);
-  opts.forEach(opt => {
-    const cb = opt.querySelector('input');
-    const optVal = opt.textContent.trim();
-    cb.checked = set.has(optVal);
+  document.querySelectorAll(`#${msId} .ms-option:not(.select-all)`).forEach(opt => {
+    opt.querySelector('input').checked = set.has(opt.textContent.trim());
   });
   const allCb = document.querySelector(`#${msId}-all`);
   if (allCb) allCb.checked = set.size === 0;
@@ -778,13 +760,10 @@ function buildFilters() {
   buildMs('ms-entity', announcements.map(a => a._entityType));
   buildMs('ms-lead',   announcements.map(a => a._lead), true);
   buildMs('ms-impact', ['High','Medium','Low']);
-
-  // States — only US states
   const states = [...new Set(
     announcements.filter(a => a._isUS && a._state && a._state !== 'TBD' && a._state !== '').map(a => a._state)
   )].sort();
   buildMs('ms-state', states);
-
   ['f-date-from','f-date-to'].forEach(id => {
     document.getElementById(id).addEventListener('change', renderFeed);
     document.getElementById(id).addEventListener('input', renderFeed);
@@ -793,13 +772,11 @@ function buildFilters() {
 
 // ── KPI UPDATE ────────────────────────────────────────────────────────────
 function updateKPIs(data) {
-  // Capital — stored in USD millions, display in billions
   const totalCapMill = data.reduce((s, a) => s + (a._capUSD || 0), 0);
   const { value: capVal, label: capLabel } = fmtCapital(totalCapMill);
   document.getElementById('kpi-capital').textContent = capVal;
   document.getElementById('kpi-capital-sub').textContent = capLabel;
 
-  // Capacity from linked projects (dedupe by project ID)
   const projIds = new Set(data.map(a => a['Project ID']).filter(Boolean));
   let totalGW = 0;
   projIds.forEach(pid => {
@@ -812,40 +789,32 @@ function updateKPIs(data) {
     else totalGW += cap;
   });
   document.getElementById('kpi-capacity').textContent = totalGW > 0 ? totalGW.toFixed(1) : '—';
-
-  // Static counts (not filter-dependent)
   document.getElementById('kpi-programs').textContent = programs.length;
   document.getElementById('kpi-projects').textContent = projects.length;
   document.getElementById('kpi-reactors').textContent = reactors.length;
-
-  // Announcements
   document.getElementById('kpi-total').textContent = data.length;
   document.getElementById('kpi-total-sub').textContent = data.length === announcements.length ? 'click for breakdown' : 'in filter — click for breakdown';
 }
 
-// Capital is stored in USD millions — display in appropriate scale with clear label
 function fmtCapital(usdMillions) {
   if (!usdMillions || usdMillions === 0) return { value: '—', label: 'USD billions' };
   const billions = usdMillions / 1000;
-  if (billions >= 1000) {
-    return { value: (billions / 1000).toFixed(1) + 'T', label: 'USD trillions' };
-  }
-  if (billions >= 1) {
-    return { value: billions.toFixed(1) + 'B', label: 'USD billions' };
-  }
+  if (billions >= 1000) return { value: (billions / 1000).toFixed(1) + 'T', label: 'USD trillions' };
+  if (billions >= 1)    return { value: billions.toFixed(1) + 'B', label: 'USD billions' };
   return { value: Math.round(usdMillions).toLocaleString() + 'M', label: 'USD millions' };
 }
 
 // ── SORT ──────────────────────────────────────────────────────────────────
 function sortBy(col) {
   if (sortCol === col) sortDir *= -1;
-  else { sortCol = col; sortDir = -1; }
+  else { sortCol = col; sortDir = 1; }  // new column always starts descending
   document.querySelectorAll('.col-head').forEach(h => {
     h.classList.remove('sorted');
     h.querySelector('.sort-arrow').textContent = '↕';
   });
   const el = document.querySelector(`.col-head[data-col="${col}"]`);
-  if (el) { el.classList.add('sorted'); el.querySelector('.sort-arrow').textContent = sortDir === -1 ? '↓' : '↑'; }
+  // sortDir===1 means "largest first" (newest dates, highest capital) → ↓ arrow
+  if (el) { el.classList.add('sorted'); el.querySelector('.sort-arrow').textContent = sortDir === 1 ? '↓' : '↑'; }
   renderFeed();
 }
 
@@ -861,9 +830,8 @@ function renderFeed() {
   const fTo     = document.getElementById('f-date-to').value;
   const fReview = document.getElementById('f-review').checked;
   const fUSOnly = document.getElementById('f-us-only').checked;
-
   const fSearch = (document.getElementById('f-search').value || '').toLowerCase().trim();
-  // Show/hide clear button
+
   const clearBtn = document.getElementById('search-clear-btn');
   if (clearBtn) clearBtn.classList.toggle('show', fSearch.length > 0);
 
@@ -879,7 +847,6 @@ function renderFeed() {
     const ts = parseDate(a['Announcement Date']);
     if (fFrom && ts && ts < parseDate(fFrom)) return false;
     if (fTo   && ts && ts > parseDate(fTo))   return false;
-    // Keyword search across summary, partners, lead, deal type, linked name
     if (fSearch) {
       const haystack = [
         a['Deal Summary'], a['Partners'], a._lead, a['Deal Type'],
@@ -890,7 +857,7 @@ function renderFeed() {
     return true;
   });
 
-  // Sort
+  // Sort: sortDir=1 → larger value first (newest dates, highest capital)
   filtered.sort((a, b) => {
     let va, vb;
     switch(sortCol) {
@@ -903,8 +870,8 @@ function renderFeed() {
       case 'impact':  const imp = {High:3,Medium:2,Low:1}; va = imp[a.Impact]||0; vb = imp[b.Impact]||0; break;
       default:        va = 0; vb = 0;
     }
-    if (va < vb) return sortDir;
-    if (va > vb) return -sortDir;
+    if (va < vb) return sortDir;    // smaller → pushed after larger when sortDir=1
+    if (va > vb) return -sortDir;   // larger  → pulled before smaller when sortDir=1
     return 0;
   });
 
@@ -921,13 +888,12 @@ function renderFeed() {
   body.innerHTML = filtered.map((a, i) => {
     const rawCap = (a['Capital Value (low)'] || '').replace(/,/g, '');
     const capNum = parseFloat(rawCap);
-    const capStr = capNum
-      ? `${capNum.toLocaleString()} ${a['Capital Unit']||''}`.trim()
-      : '—';
+    const capStr = capNum ? `${capNum.toLocaleString()} ${a['Capital Unit']||''}`.trim() : '—';
     const summary = (a['Deal Summary']||'').slice(0,120) + ((a['Deal Summary']||'').length>120?'…':'');
     const summaryHtml = fSearch ? highlight(summary, fSearch) : summary;
     const linkedName = a._linkedName ? `<div style="font-size:11px;color:var(--muted);margin-top:3px">${a._linkedName}</div>` : '';
     const intlFlag = !a._isUS ? `<span class="intl-flag">INTL</span>` : '';
+    // FIX 2 applied: safeUrl() at feed table Source link
     return `<div class="trow" style="--tgrid:${grid}">
       <span class="cell-date">${fmtDateShort(a['Announcement Date'])}</span>
       <span class="cell" style="font-size:12px">${a['Deal Type']||'—'}</span>
@@ -941,7 +907,7 @@ function renderFeed() {
         <div style="font-size:11px;color:var(--muted)">${a._entityType||''}</div>
       </div>
       <span class="cell" style="font-size:12px">${capStr}</span>
-      <span class="cell">${a['Source URL'] ? `<a href="${encodeURI(a['Source URL'].trim())}" target="_blank" rel="noreferrer noopener" class="cell-link" style="font-size:12px;white-space:nowrap">Source ↗</a>` : ''}</span>
+      <span class="cell">${a['Source URL'] ? `<a href="${safeUrl(a['Source URL'])}" target="_blank" rel="noreferrer noopener" class="cell-link" style="font-size:12px;white-space:nowrap">Source ↗</a>` : ''}</span>
     </div>`;
   }).join('');
 }
@@ -963,7 +929,6 @@ function resetFilters() {
   renderFeed();
 }
 
-// ── SEARCH HELPERS ────────────────────────────────────────────────────────
 function clearSearch() {
   document.getElementById('f-search').value = '';
   document.getElementById('search-clear-btn').classList.remove('show');
@@ -1008,8 +973,9 @@ function openDealModal(idx) {
   body += drow('Capital Source', a['Capital Source']);
   body += drow('Needs Review',   a['Needs Review'] === 'Yes' ? '⚠ Yes — flagged for review' : null);
   document.getElementById('modal-body').innerHTML = body;
+  // FIX 2 applied: safeUrl() at deal modal source link
   if (a['Source URL']) {
-    document.getElementById('modal-body').innerHTML += `<a href="${a['Source URL']}" target="_blank" rel="noreferrer" class="modal-link">View source article →</a>`;
+    document.getElementById('modal-body').innerHTML += `<a href="${safeUrl(a['Source URL'])}" target="_blank" rel="noreferrer" class="modal-link">View source article →</a>`;
   }
   document.getElementById('modal-overlay').classList.add('open');
 }
@@ -1030,7 +996,6 @@ function openSigModal() {
   Object.keys(SIG_DEFS).forEach(k => sigCounts[k] = 0);
   filtered.forEach(a => { if (sigCounts[a.Significance] !== undefined) sigCounts[a.Significance]++; });
   const total = filtered.length;
-
   const rows = Object.entries(SIG_DEFS).map(([sig, def]) => {
     const count = sigCounts[sig] || 0;
     const pct = total > 0 ? Math.round(count / total * 100) : 0;
@@ -1050,7 +1015,6 @@ function openSigModal() {
         </div>
       </div>`;
   }).join('');
-
   document.getElementById('sig-modal-body').innerHTML = `
     <div style="font-size:13px;color:var(--muted);margin-bottom:16px">${total} announcement${total!==1?'s':''} in current filter</div>
     ${rows}`;
@@ -1064,7 +1028,6 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal
 function downloadExcel() {
   if (!filtered.length) return;
   const cols = ['Deal ID','Announcement Date','Deal Type','Significance','Impact','Deal Summary','Partners','Capital Value (low)','Capital Unit','Value Type','Capital Source','USD Val low (calc.)','Source URL','Confidence','Needs Review'];
-  const extra = ['_lead','_entityType','_state','_linkedName'];
   const headers = [...cols, 'Primary Lead','Lead Entity Type','State / Location','Linked Entity'];
   const rows = filtered.map(a => [...cols.map(c => a[c]||''), a._lead||'', a._entityType||'', a._state||'', a._linkedName||'']);
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -1089,18 +1052,15 @@ function setMode(mode) {
     const proj = r['Project ID (opt.)'] ? projectMap[r['Project ID (opt.)']] : null;
     return { id: r['Reactor ID'], name: r['Unit Name / Number'], sub: r['Technology'], meta: proj ? proj['Project Name'] : r['Site Name']||'Standalone', status: r['Status'] };
   });
-
   items.sort((a,b) => a.name.localeCompare(b.name));
-  explorerItems = items; // store for search filtering
+  explorerItems = items;
   sel.innerHTML += items.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
 
-  // Clear search on mode switch
   const searchEl = document.getElementById('explorer-search');
-  if (searchEl) { searchEl.value = ''; }
+  if (searchEl) searchEl.value = '';
   const clearBtn = document.getElementById('explorer-search-clear');
   if (clearBtn) clearBtn.classList.remove('show');
 
-  // Show grid, hide detail
   renderEntityList(items, mode);
   document.getElementById('explorer-content').style.display = 'none';
 }
@@ -1108,7 +1068,6 @@ function setMode(mode) {
 function renderEntityList(items, mode) {
   const listEl = document.getElementById('entity-list');
   if (!items.length) { listEl.innerHTML = ''; return; }
-
   const dealCounts = {};
   items.forEach(item => {
     let count = 0;
@@ -1117,8 +1076,6 @@ function renderEntityList(items, mode) {
     if (mode === 'reactor') count = announcements.filter(a => a['Reactor ID'] === item.id).length;
     dealCounts[item.id] = count;
   });
-
-  const modeLabel = mode.charAt(0).toUpperCase() + mode.slice(1);
   listEl.style.display = 'block';
   listEl.innerHTML = `
     <div style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:20px 24px;box-shadow:0 1px 4px rgba(0,0,0,0.04)">
@@ -1144,10 +1101,7 @@ function filterEntityList() {
   const q = (document.getElementById('explorer-search').value || '').toLowerCase().trim();
   const clearBtn = document.getElementById('explorer-search-clear');
   if (clearBtn) clearBtn.classList.toggle('show', q.length > 0);
-  const items = q
-    ? explorerItems.filter(item =>
-        [item.name, item.sub, item.meta, item.status].join(' ').toLowerCase().includes(q))
-    : explorerItems;
+  const items = q ? explorerItems.filter(item => [item.name, item.sub, item.meta, item.status].join(' ').toLowerCase().includes(q)) : explorerItems;
   renderEntityList(items, explorerMode);
 }
 
@@ -1161,7 +1115,6 @@ function backToList() {
   document.getElementById('explorer-select').value = '';
   document.getElementById('explorer-content').style.display = 'none';
   document.getElementById('entity-list').style.display = 'block';
-  // Clear search and restore full list
   const searchEl = document.getElementById('explorer-search');
   if (searchEl && searchEl.value) clearExplorerSearch();
 }
@@ -1180,7 +1133,6 @@ function loadEntity() {
     document.getElementById('entity-list').style.display = 'block';
     return;
   }
-  // Hide grid, show detail
   document.getElementById('entity-list').style.display = 'none';
   document.getElementById('explorer-content').style.display = 'block';
   if (explorerMode === 'program') renderProgramView(id);
@@ -1215,7 +1167,6 @@ function renderProgramView(progId) {
           <div class="entity-stat"><div class="entity-stat-n">${sortedDeals.length}</div><div class="entity-stat-l">Deals</div></div>
         </div>
       </div>`;
-
   if (linkedProjects.length) {
     html += `<div class="timeline-header">Linked Projects</div>
       <div class="child-projects">
@@ -1230,7 +1181,6 @@ function renderProgramView(progId) {
           </div>`).join('')}
       </div>`;
   }
-
   html += renderTimeline(sortedDeals) + '</div></div>';
   document.getElementById('explorer-content').innerHTML = html;
 }
@@ -1242,7 +1192,6 @@ function renderProjectView(projId) {
   const linkedReactors = reactors.filter(r => r['Project ID (opt.)'] === projId);
   const sortedDeals = [...linkedDeals].sort((a,b) => parseDate(b['Announcement Date']) - parseDate(a['Announcement Date']));
   const prog = proj['Program ID (opt.)'] ? programMap[proj['Program ID (opt.)']] : null;
-
   const capNum = parseFloat(proj['Total Capacity'])||0;
   const capUnit = proj['Capacity Unit']||'GW';
   const capGW = capUnit==='MW' ? capNum/1000 : capUnit==='TW' ? capNum*1000 : capNum;
@@ -1272,9 +1221,7 @@ function renderProjectView(projId) {
           ${linkedReactors.length ? `<div class="entity-stat"><div class="entity-stat-n">${linkedReactors.length}</div><div class="entity-stat-l">Reactors</div></div>` : ''}
         </div>
       </div>`;
-
   html += renderTimeline(sortedDeals);
-
   if (linkedReactors.length) {
     html += `<div class="timeline-header">Linked Reactors</div>
       <div class="child-projects">
@@ -1289,7 +1236,6 @@ function renderProjectView(projId) {
           </div>`).join('')}
       </div>`;
   }
-
   html += '</div></div>';
   document.getElementById('explorer-content').innerHTML = html;
 }
@@ -1301,18 +1247,15 @@ function renderReactorView(reacId) {
   const proj = reac['Project ID (opt.)'] ? projectMap[reac['Project ID (opt.)']] : null;
   const prog = proj?.['Program ID (opt.)'] ? programMap[proj['Program ID (opt.)']] : null;
   const sortedDeals = [...linkedDeals].sort((a,b) => parseDate(b['Announcement Date']) - parseDate(a['Announcement Date']));
-
   const capNum = parseFloat(reac['Capacity'])||0;
   const capUnit = reac['Capacity Unit']||'MW';
   const capGW = capUnit==='MW' ? capNum/1000 : capUnit==='TW' ? capNum*1000 : capNum;
 
-  // Build hierarchy breadcrumb
   let hierarchyHtml = '';
   if (prog || proj) {
     hierarchyHtml = `<div style="background:#f8fbff;border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin:0 28px 0">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);font-weight:700;margin-bottom:12px">Connected to</div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:stretch">`;
-
     if (proj) {
       const projDeals = announcements.filter(a => a['Project ID'] === proj['Project ID']).length;
       const projCapNum = parseFloat(proj['Total Capacity'])||0;
@@ -1333,7 +1276,6 @@ function renderReactorView(reacId) {
           </div>
         </div>`;
     }
-
     if (prog) {
       const progDeals = announcements.filter(a => a['Program ID'] === prog['Program ID']).length;
       const progProjects = projects.filter(p => p['Program ID (opt.)'] === prog['Program ID']).length;
@@ -1352,7 +1294,6 @@ function renderReactorView(reacId) {
           </div>
         </div>`;
     }
-
     hierarchyHtml += `</div></div>`;
   }
 
@@ -1380,7 +1321,6 @@ function renderReactorView(reacId) {
       ${hierarchyHtml}
       ${renderTimeline(sortedDeals)}
     </div></div>`;
-
   document.getElementById('explorer-content').innerHTML = html;
 }
 
@@ -1392,7 +1332,6 @@ function renderTimeline(deals) {
       ${deals.map((a, i) => {
         const color = SIG_COLOR[a['Significance']] || '#888';
         const isLast = i === deals.length - 1;
-        // Clickable linked entity name
         let entityLink = '';
         if (a['Project ID'] && a._project) {
           entityLink = `<button class="lbtn" style="font-size:11px;color:var(--muted)" onclick="selectEntity('${a['Project ID']}','project')">${a._project['Project Name']} →</button>`;
@@ -1401,6 +1340,7 @@ function renderTimeline(deals) {
         } else if (a['Reactor ID'] && a._reactor) {
           entityLink = `<button class="lbtn" style="font-size:11px;color:var(--muted)" onclick="selectEntity('${a['Reactor ID']}','reactor')">${a._reactor['Unit Name / Number']} →</button>`;
         }
+        // FIX 2 applied: safeUrl() at timeline Source links
         return `<div class="timeline-item">
           <div class="timeline-dot-col">
             <div class="timeline-dot" style="background:${color}"></div>
@@ -1415,7 +1355,7 @@ function renderTimeline(deals) {
               <span class="badge b-entity" style="font-size:11px">${a['Deal Type']||''}</span>
               ${a['Capital Value (low)'] ? `<span class="badge b-low" style="font-size:11px">${parseFloat(a['Capital Value (low)'].replace(/,/g,'')).toLocaleString()} ${a['Capital Unit']||''}</span>` : ''}
               ${a['Needs Review']==='Yes' ? reviewBadge() : ''}
-              ${a['Source URL'] ? `<a href="${encodeURI(a['Source URL'].trim())}" target="_blank" rel="noreferrer noopener" class="cell-link" style="margin-left:4px">Source ↗</a>` : ''}
+              ${a['Source URL'] ? `<a href="${safeUrl(a['Source URL'])}" target="_blank" rel="noreferrer noopener" class="cell-link" style="margin-left:4px">Source ↗</a>` : ''}
             </div>
           </div>
         </div>`;
@@ -1436,15 +1376,12 @@ async function loadData() {
       fetchCSV(URLS.programs), fetchCSV(URLS.projects),
       fetchCSV(URLS.reactors), fetchCSV(URLS.announcements),
     ]);
-
-    // Build lookup maps
-    programs.forEach(p      => { if (p['Program ID'])              programMap[p['Program ID']]              = p; });
-    projects.forEach(p      => { if (p['Project ID'])              projectMap[p['Project ID']]              = p; });
-    reactors.forEach(r      => { if (r['Reactor ID'])              reactorMap[r['Reactor ID']]              = r; });
+    programs.forEach(p => { if (p['Program ID']) programMap[p['Program ID']] = p; });
+    projects.forEach(p => { if (p['Project ID']) projectMap[p['Project ID']] = p; });
+    reactors.forEach(r => { if (r['Reactor ID']) reactorMap[r['Reactor ID']] = r; });
 
     enrichAnnouncements();
 
-    // Review badge
     const reviewCount = announcements.filter(a => a['Needs Review'] === 'Yes').length;
     const badge = document.getElementById('review-badge');
     if (reviewCount > 0) { badge.textContent = `${reviewCount} needs review`; badge.classList.add('show'); }
